@@ -11,5 +11,35 @@ In emergency scenarios, such as natural disasters or critical infrastructure fai
 
 ## Requirements
 To reproduce the experiment, you will need:
-- **4 x machines**: With Ubuntu 24.04 and with at least 4 cores and 8GB of RAM each. One of these machines will act as the **controller** for the experiment and the other three as **edge nodes**.
+- **At least 4 machines**: With Ubuntu 24.04 and with at least 4 cores and 8GB of RAM each. One of these machines will act as the **controller** for the experiment and the other three as **edge nodes**.
 - **Iggy Instance**: An instance of the Iggy server running on the controller machine. Iggy is a lightweight message streaming platform used by SPARE to orchestrate the experiment and enable node discovery. You can find Iggy [here](https://iggy.rs "here").
+- **Firecracker**: The Firecracker microVM hypervisor is used by SPARE to run serverless functions. You can find Firecracker [here](https://firecracker-microvm.github.io/ "here"). Install Firecracker on all edge nodes.
+
+## Setup
+1. **Clone the repository**: Clone this repository on all machines.
+2. **Install dependencies**: Run the following command on all machines to install the necessary dependencies:
+```bash
+./setup.sh
+```
+Warning: This script will install the necessary dependencies and configure the machines for the experiment. Please check the script before running it to ensure it does not interfere with your system. 
+
+Warning 2: Please, remember to install Firecracker manually.
+
+3. **Install and run Iggy**: Start the Iggy server on the controller machine by running the following commands:
+```bash
+git clone https://github.com/iggy-rs/iggy
+cd iggy/
+cargo build --release
+./target/release/iggy-server
+```
+4. **Start the controller**: On the controller machine, run the following command to start the experiment:
+```bash
+RUST_LOG=INFO ./target/release/spare_benchmark -b [IGGY_ADDRESS] -n [NUMBER_OF_NODES] -i [EPOCHS (i.e., 50)] -x 100 -y 150 [DIMENSION OF THE GRID]
+```
+5. **Prepare the nodes**: On each node, configure the variables in the `spare/build_and_run.sh` script to match the IP address of the controller machine and other parameters, according to the ones used in `setup.sh`. Then, run the following command to build and run the SPARE server:
+```bash
+./build_and_run.sh
+```
+6. **Run the experiment**: Once all nodes are running, the experiment will start automatically. You can monitor the progress on the controller machine.
+
+Warning: Each node will save its data in a file with the name formatted as `node_x{}_y{}.stats.data`, where `x` and `y` are the coordinates of the node in the grid. The controller will save its data in different csv files contained in `spare_benchmark/` folder.

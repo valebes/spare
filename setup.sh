@@ -26,7 +26,6 @@ cargo install sqlx-cli
 # Enabling vhost-vsock
 sudo modprobe vhost_vsock
 
-
 # Preparing adapter
 sudo ip link add name $BRIDGE_INTERFACE type bridge
 sudo ip addr add $CIDR dev $BRIDGE_INTERFACE
