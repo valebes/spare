@@ -1,0 +1,22 @@
+# Set output format and file
+set terminal pdf enhanced font 'Verdana,14'
+set output 'weighted_avg_hops_plot.pdf'
+
+# Title and axis labels
+set title "Average Hops per Function Invocation"
+set xlabel "Epoch"
+set ylabel "Average Hops"
+set yrange [*:0.5]
+set grid
+
+# Define the datafile separator as comma
+set datafile separator ","
+
+set style data histograms
+set style histogram cluster gap 1
+set style fill solid 0.6 border -1
+set boxwidth 0.6
+set key autotitle columnheader
+
+# Read data and plot
+plot "weighted_avg_hops_by_epoch.csv" using 1:2 title "Avg. Hops" smooth freq with fillsteps 

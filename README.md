@@ -21,9 +21,9 @@ To reproduce the experiment, you will need:
 ```bash
 ./setup.sh
 ```
-Warning: This script will install the necessary dependencies and configure the machines for the experiment. Please check the script before running it to ensure it does not interfere with your system. 
+**Warning I**: This script will install the necessary dependencies and configure the machines for the experiment. Please check the script before running it to ensure it does not interfere with your system. 
 
-Warning 2: Please, remember to install Firecracker manually.
+**Warning II**: Please, remember to install Firecracker manually.
 
 3. **Install and run Iggy**: Start the Iggy server on the controller machine by running the following commands:
 ```bash
@@ -42,4 +42,21 @@ RUST_LOG=INFO ./target/release/spare_benchmark -b [IGGY_ADDRESS] -n [NUMBER_OF_N
 ```
 6. **Run the experiment**: Once all nodes are running, the experiment will start automatically. You can monitor the progress on the controller machine.
 
-Warning: Each node will save its data in a file with the name formatted as `node_x{}_y{}.stats.data`, where `x` and `y` are the coordinates of the node in the grid. The controller will save its data in different csv files contained in `spare_benchmark/` folder.
+**Warning**: Each node will save its data in a file with the name formatted as `node_x{}_y{}.stats.data`, where `x` and `y` are the coordinates of the node in the grid. The controller will save its data in different csv files contained in `spare_benchmark/` folder.
+
+## Results
+The experiment will output the following files:
+- `spare_benchmark/latency_per_epoch_normal.csv`: Contains the latency of the serverless functions per epoch (normal scenario).
+- `spare_benchmark/latency_per_epoch_emergency.csv`: Contains the latency of the serverless functions per epoch (disaster emergency).
+- `spare_benchmark/weighted_avg_hops_by_epoch.csv`: Contains the weighted average of the number of hops per epoch.
+- `spare/node_x{}_y{}.stats.data`: Contains the statistics of each node in the grid.
+
+For what regard the cold start experiment, you can run it by executing the following command:
+```bash
+ sudo -E /home/user/.cargo/bin/cargo test --package ohsw --release --lib -- endpoints::test::benchmark --exact --show-output 
+```
+This will produce the following output:
+- `spare/cold_start.csv`: Contains the cold start times of the serverless functions.
+- `spare/executions.csv`: Contains the execution times of the serverless functions.
+
+The directory `/plots` contains the scripts to generate the plots presented in the paper.

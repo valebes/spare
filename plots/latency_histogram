@@ -1,0 +1,24 @@
+# Set output and style
+set terminal pdf enhanced font 'Verdana,14'
+set output 'latency_histogram.pdf'
+
+# Titles and labels
+set title "Mean Request Latency in Normal vs. Emergency Scenarios"
+set xlabel "Scenario"
+set ylabel "Average Latency (ms)"
+set datafile separator ","
+set ytics 250
+
+# Set style for histogram
+set style data histograms
+set style histogram cluster gap 1
+set style fill solid 0.6 border -1
+set boxwidth 0.6
+set key autotitle columnheader
+
+# Ranges
+set yrange [0:1500]
+
+# Plot histogram for average latency
+plot 'latency_summary.csv' using 0:2:($0+1):xtic(1) title columnhead with boxes lc variable
+

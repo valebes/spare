@@ -1,0 +1,27 @@
+# Set output to a PNG file without fixed dimensions
+set terminal pdf enhanced font 'Verdana,14'
+# Generate the latency over epochs plot
+set output 'latency_per_epoch.pdf'
+unset key
+set title "Latency Over Epochs"
+set xlabel "Epoch"
+set ylabel "Latency (ms)"
+set grid
+set yrange [1150:1550]
+
+# Adjust x-axis labels spacing for clarity
+set xtics 10
+
+# Set the separator for CSV files
+set datafile separator ","
+
+# Determine the number of normal epochs dynamically
+normal_epoch_count = int(system("wc -l < latency_per_epoch_normal.csv") -1)
+
+# Draw the red rectangle between the last normal and first emergency epochs
+set object 1 rect from (normal_epoch_count -1), graph 0 to (normal_epoch_count ), graph 1 \
+    fc rgb "red" fillstyle solid
+
+# Plot the normal and emergency latencies with offset for emergency epochs
+plot "latency_per_epoch_normal.csv" using 1:2 with lines title "Normal Latency" lc rgb "#1f77b4", \
+     "latency_per_epoch_emergency.csv" using ($1 + normal_epoch_count):2 with lines title "Emergency Latency" lc rgb "#d62728"
