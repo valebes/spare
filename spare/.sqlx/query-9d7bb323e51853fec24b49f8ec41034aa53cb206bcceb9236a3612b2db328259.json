@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT\n            strftime('%s', ?) * 1000 AS timestamp_ms,  -- Convert end timestamp to milliseconds\n            COALESCE(AVG(hops), 0.0) AS hops_avg,\n            COALESCE(SUM(vcpus), 0) AS vcpus_sum,\n            COALESCE(SUM(memory), 0) AS memory_sum,\n            COALESCE(COUNT(id), 0) AS requests\n        FROM\n            instances\n        WHERE\n            created_at BETWEEN ? AND ?\n            AND status = 'terminated'\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "timestamp_ms",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "hops_avg",
+        "ordinal": 1,
+        "type_info": "Float"
+      },
+      {
+        "name": "vcpus_sum",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "memory_sum",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "requests",
+        "ordinal": 4,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9d7bb323e51853fec24b49f8ec41034aa53cb206bcceb9236a3612b2db328259"
+}
