@@ -38,6 +38,7 @@ RUST_LOG=INFO SPARE_FUNCTION=../data/nanosvm ./target/release/spare_benchmark -b
 ```
 5. **Prepare the nodes**: On each node, configure the variables in the `spare/build_and_run.sh` script to match the IP address of the controller machine and other parameters, according to the ones used in `setup.sh`. Then, run the following command to build and run the SPARE server:
 ```bash
+cd spare/
 ./build_and_run.sh
 ```
 6. **Run the experiment**: Once all nodes are running, the experiment will start automatically. You can monitor the progress on the controller machine.
@@ -53,7 +54,8 @@ The experiment will output the following files:
 
 For what regard the cold start experiment, you can run it by executing the following command:
 ```bash
-SPARE_FUNCTION=/path/to/spare/data/nanosvm FIRECRACKER_EXECUTABLE=/path/to/spare/data/firecracker NANOS_KERNEL=/path/to/spare/data/kernel.img BRIDGE_INTERFACE=br0 sudo -E  /home/<user>/.cargo/bin/cargo test --package ohsw --release --lib -- endpoints::test::benchmark --exact --show-output 
+cd spare/
+./cold_start_benchmark.sh 
 ```
 This will produce the following output:
 - `spare/cold_start.csv`: Contains the cold start times of the serverless functions.
