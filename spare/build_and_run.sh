@@ -14,7 +14,7 @@ BROKER_ADDRESS=192.168.200.1
 # Broker port
 BROKER_PORT=8090
 # Root directory
-ROOT_DIR=$(dirname "$0")
+ROOT_DIR=$(dirname $(dirname $(realpath $0)))
 # Nanos kernel
 NANOS_KERNEL=$ROOT_DIR/data/kernel.img
 # Database URL
