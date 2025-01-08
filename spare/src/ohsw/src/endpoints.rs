@@ -338,15 +338,15 @@ mod test {
 
         // Fetch configuration from environment variables
         // Fetch function image path from environment variable
-                let function_image_path = if let Ok(val) = std::env::var("SPARE_FUNCTION") {
-                    val
-                } else {
-                    panic!("SPARE_FUNCTION environment variable not set");
-                }
-                // Check if the image exists
-                if !Path::new(&function_image_path).exists() {
-                    panic!("Function image not found");
-                }
+        let function_image_path = if let Ok(val) = std::env::var("SPARE_FUNCTION") {
+            val
+        } else {
+            panic!("SPARE_FUNCTION environment variable not set");
+        };
+        // Check if the image exists
+        if !Path::new(&function_image_path).exists() {
+            panic!("Function image not found");
+        }
 
         // Fetch firecracker executable path from environment variable
         let firecracker_executable = if let Ok(val) = std::env::var("FIRECRACKER_EXECUTABLE") {
@@ -379,14 +379,14 @@ mod test {
 
         // Obviously this test will fail if the paths are not correct, so change them accordingly
         let firecracker_builder = FirecrackerBuilder::new(
-            firecracker_executable, // Firecracker executable
+            firecracker_executable,        // Firecracker executable
             kernel_image_path.to_string(), // Kernel image
-            bridge_name,                      // Bridge name
+            bridge_name,                   // Bridge name
             addresses,
         );
         let builder = firecracker_builder;
         let mut i = 0;
-        
+
         while i < 1000 {
             let mut fc_instance = builder
                 .new_instance(function_image_path.clone(), 2, 256) // Image, vcpus, memory
