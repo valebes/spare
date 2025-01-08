@@ -12,13 +12,15 @@ BRIDGE_INTERFACE=br0
 # Broker address
 BROKER_ADDRESS=192.168.200.1
 # Broker port
-BROKER_PORT=8090    
+BROKER_PORT=8090
+# Root directory
+ROOT_DIR=$(dirname "$0")
 # Nanos kernel
-NANOS_KERNEL=../data/kernel.img
+NANOS_KERNEL=$ROOT_DIR/data/kernel.img
 # Database URL
-DATABASE_URL=../data/db.db
+DATABASE_URL=$ROOT_DIR/data/db.db
 # Firecracker executable
-FIRECRACKER_EXECUTABLE=../data/firecracker
+FIRECRACKER_EXECUTABLE=$ROOT_DIR/data/firecracker
 
 # Clean Previous Data
 rm node_*

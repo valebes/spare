@@ -53,7 +53,7 @@ The experiment will output the following files:
 
 For what regard the cold start experiment, you can run it by executing the following command:
 ```bash
- sudo -E SPARE_FUNCTION=/../data/nanosvm FIRECRACKER_EXECUTABLE=../data/firecracker NANOS_KERNEL=../data/kernel.img BRIDGE_INTERFACE=br0 /home/user/.cargo/bin/cargo test --package ohsw --release --lib -- endpoints::test::benchmark --exact --show-output 
+SPARE_FUNCTION=/path/to/spare/data/nanosvm FIRECRACKER_EXECUTABLE=/path/to/spare/data/firecracker NANOS_KERNEL=/path/to/spare/data/kernel.img BRIDGE_INTERFACE=br0 sudo -E  /home/<user>/.cargo/bin/cargo test --package ohsw --release --lib -- endpoints::test::benchmark --exact --show-output 
 ```
 This will produce the following output:
 - `spare/cold_start.csv`: Contains the cold start times of the serverless functions.
