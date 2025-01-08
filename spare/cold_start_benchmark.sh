@@ -16,4 +16,4 @@ SPARE_FUNCTION=$ROOT_DIR/data/nanosvm
 # Bridge network interface
 BRIDGE_INTERFACE=br0
 
-SPARE_FUNCTION=$SPARE_FUNCTION FIRECRACKER_EXECUTABLE=$FIRECRACKER_EXECUTABLE NANOS_KERNEL=$NANOS_KERNEL BRIDGE_INTERFACE=$BRIDGE_INTERFACE sudo -E  $CARGO_PATH/bin/cargo test --package ohsw --release --lib -- endpoints::test::benchmark --exact --show-output 
+SPARE_FUNCTION=$SPARE_FUNCTION FIRECRACKER_EXECUTABLE=$FIRECRACKER_EXECUTABLE NANOS_KERNEL=$NANOS_KERNEL BRIDGE_INTERFACE=$BRIDGE_INTERFACE sudo -E  $CARGO_PATH/cargo test --package ohsw --release --lib -- endpoints::test::benchmark --exact --show-output 
