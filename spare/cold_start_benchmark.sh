@@ -2,7 +2,7 @@
 
 # Script to run the cold start benchmark
 # Root directory
-ROOT_DIR=$(dirname "$0")
+ROOT_DIR=$(dirname $(realpath $0))
 # Cargo path
 CARGO_PATH=$(dirname $(which cargo))
 # Nanos kernel
