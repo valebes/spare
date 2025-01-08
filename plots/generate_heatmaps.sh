@@ -19,7 +19,7 @@ for timestamp in $timestamps; do
     > "$unified_file"
     
     # Loop through each file to extract X, Y from the filename and corresponding Request value
-    for datafile in stats-data/node_x*_y*.stats.data; do
+    for datafile in stats_data/node_x*_y*.stats.data; do
         # Extract X and Y coordinates from filename using regex
         if [[ "$datafile" =~ node_x([0-9]+)_y([0-9]+)\.stats\.data ]]; then
             x="${BASH_REMATCH[1]}"
