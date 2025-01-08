@@ -1,4 +1,5 @@
 use std::{
+    env,
     fs::OpenOptions,
     io::Write,
     path::Path,
@@ -271,6 +272,7 @@ async fn test(
     client: &IggyClient,
     iterations: i32,
     nodes: Vec<Node>,
+    function_path: &String,
 ) -> (u128, usize, usize, Vec<u128>) {
     let request_per_epoch = 6 * nodes.len();
     let mut latency_per_epoch = Vec::new();
@@ -292,14 +294,15 @@ async fn test(
 
             let completed_tmp = Arc::clone(&completed);
             let failed_tmp = Arc::clone(&failed);
+            let function_path_tmp = function_path.clone();
 
             sleep(Duration::from_millis(55)).await; // Inter-arrival time
             let handle = tokio::spawn(async move {
                 let web_client = reqwest::Client::new();
 
                 let invoke_function = InvokeFunction {
-                    function: "mandelbrot".to_string(),
-                    image: "/home/ubuntu/.ops/images/nanosvm".to_string(),
+                    function: "mandelbrot".to_string(), // Function name (This is hardcoded for now)
+                    image: function_path_tmp,
                     vcpus: 2,
                     memory: 256,
                     payload: "test".to_string(),
@@ -416,6 +419,25 @@ async fn test(
 async fn main() {
     env_logger::init();
 
+    // Check environment variables
+    // Fetch the function to execute from environment
+    let mut function_path = String::new();
+    let function = env::var("SPARE_FUNCTION");
+    match function {
+        Ok(val) => {
+            // Check if the file exists
+            let path = Path::new(&val);
+            if !path.exists() {
+                panic!("Function image {} does not exist", val);
+            }
+            function_path = val;
+        }
+        Err(e) => {
+            panic!("SPARE_FUNCTION environment variable not set: {}", e);
+        }
+    }
+
+    // Parse arguments from CLI
     let args = Args::parse();
     let client = IggyClient::builder()
         .with_tcp()
@@ -484,7 +506,7 @@ async fn main() {
     let iterations = args.iterations;
 
     let (avg_normal_latency, completed_normal, failed_normal, latency_per_epoch_normal) =
-        test(&client, iterations, nodes.clone()).await;
+        test(&client, iterations, nodes.clone(), &function_path).await;
 
     println!("EMERGENCY SCENARIO");
     start_emergency(&client, emergency.clone()).await.unwrap();
@@ -493,7 +515,7 @@ async fn main() {
     sleep(Duration::from_secs(5)).await;
 
     let (avg_emergency_latency, completed_emergency, failed_emergency, latency_per_epoch_emergency) =
-        test(&client, iterations, nodes.clone()).await;
+        test(&client, iterations, nodes.clone(), &function_path).await;
 
     stop_emergency(&client).await.unwrap();
 

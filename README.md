@@ -23,7 +23,7 @@ To reproduce the experiment, you will need:
 ```
 **Warning I**: This script will install the necessary dependencies and configure the machines for the experiment. Please check the script before running it to ensure it does not interfere with your system. 
 
-**Warning II**: Please, remember to install Firecracker manually.
+**Warning II**: Please, remember to install Firecracker manually and place the executable in `data/`.
 
 3. **Install and run Iggy**: Start the Iggy server on the controller machine by running the following commands:
 ```bash
@@ -34,7 +34,7 @@ cargo build --release
 ```
 4. **Start the controller**: On the controller machine, run the following command to start the experiment:
 ```bash
-RUST_LOG=INFO ./target/release/spare_benchmark -b [IGGY_ADDRESS] -n [NUMBER_OF_NODES] -i [EPOCHS (i.e., 50)] -x 100 -y 150 [DIMENSION OF THE GRID]
+RUST_LOG=INFO SPARE_FUNCTION=../data/nanosvm ./target/release/spare_benchmark -b [IGGY_ADDRESS] -n [NUMBER_OF_NODES] -i [EPOCHS (i.e., 50)] -x 100 -y 150 [DIMENSION OF THE GRID]
 ```
 5. **Prepare the nodes**: On each node, configure the variables in the `spare/build_and_run.sh` script to match the IP address of the controller machine and other parameters, according to the ones used in `setup.sh`. Then, run the following command to build and run the SPARE server:
 ```bash
@@ -42,7 +42,7 @@ RUST_LOG=INFO ./target/release/spare_benchmark -b [IGGY_ADDRESS] -n [NUMBER_OF_N
 ```
 6. **Run the experiment**: Once all nodes are running, the experiment will start automatically. You can monitor the progress on the controller machine.
 
-**Warning**: Each node will save its data in a file with the name formatted as `node_x{}_y{}.stats.data`, where `x` and `y` are the coordinates of the node in the grid. The controller will save its data in different csv files contained in `spare_benchmark/` folder.
+**Warning**: Each node will save its data in a file, located in `spare/`, with the name formatted as `node_x{}_y{}.stats.data`, where `x` and `y` are the coordinates of the node in the grid. The controller will save its data in different csv files contained in `spare_benchmark/` folder.
 
 ## Results
 The experiment will output the following files:
@@ -53,7 +53,7 @@ The experiment will output the following files:
 
 For what regard the cold start experiment, you can run it by executing the following command:
 ```bash
- sudo -E /home/user/.cargo/bin/cargo test --package ohsw --release --lib -- endpoints::test::benchmark --exact --show-output 
+ sudo -E SPARE_FUNCTION=/../data/nanosvm FIRECRACKER_EXECUTABLE=../data/firecracker NANOS_KERNEL=../data/kernel.img BRIDGE_INTERFACE=br0 /home/user/.cargo/bin/cargo test --package ohsw --release --lib -- endpoints::test::benchmark --exact --show-output 
 ```
 This will produce the following output:
 - `spare/cold_start.csv`: Contains the cold start times of the serverless functions.

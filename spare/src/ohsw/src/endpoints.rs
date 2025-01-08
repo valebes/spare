@@ -336,19 +336,60 @@ mod test {
         let mut cold_start_times = Vec::new();
         let mut execution_times = Vec::new();
 
+        // Fetch configuration from environment variables
+        // Fetch function image path from environment variable
+                let function_image_path = if let Ok(val) = std::env::var("SPARE_FUNCTION") {
+                    val
+                } else {
+                    panic!("SPARE_FUNCTION environment variable not set");
+                }
+                // Check if the image exists
+                if !Path::new(&function_image_path).exists() {
+                    panic!("Function image not found");
+                }
+
+        // Fetch firecracker executable path from environment variable
+        let firecracker_executable = if let Ok(val) = std::env::var("FIRECRACKER_EXECUTABLE") {
+            val
+        } else {
+            panic!("FIRECRACKER_EXECUTABLE environment variable not set");
+        };
+        // Check if the executable exists
+        if !Path::new(&firecracker_executable).exists() {
+            panic!("Firecracker executable not found");
+        }
+
+        // Fetch kernel image path from environment variable
+        let kernel_image_path = if let Ok(val) = std::env::var("NANOS_KERNEL") {
+            val
+        } else {
+            panic!("NANOS_KERNEL environment variable not set");
+        };
+        // Check if the kernel image exists
+        if !Path::new(&kernel_image_path).exists() {
+            panic!("Kernel image not found");
+        }
+
+        // Fetch bridge name from environment variable
+        let bridge_name = if let Ok(val) = std::env::var("BRIDGE_INTERFACE") {
+            val
+        } else {
+            panic!("BRIDGE_INTERFACE environment variable not set");
+        };
+
         // Obviously this test will fail if the paths are not correct, so change them accordingly
         let firecracker_builder = FirecrackerBuilder::new(
-            "/home/ubuntu/firecracker".to_string(), // Firecracker executable
-            "/home/ubuntu/.ops/0.1.51/kernel.img".to_string(), // Kernel image
-            "br0".to_string(),                      // Bridge name
+            firecracker_executable, // Firecracker executable
+            kernel_image_path.to_string(), // Kernel image
+            bridge_name,                      // Bridge name
             addresses,
         );
         let builder = firecracker_builder;
         let mut i = 0;
-
+        
         while i < 1000 {
             let mut fc_instance = builder
-                .new_instance("/home/ubuntu/.ops/images/nanosvm".to_owned(), 2, 256) // Image, vcpus, memory
+                .new_instance(function_image_path.clone(), 2, 256) // Image, vcpus, memory
                 .await;
 
             // VSOCK
