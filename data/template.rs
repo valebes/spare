@@ -44,10 +44,7 @@ fn handle_client(stream: TcpStream, buf: Vec<u8>) {
     handle_write(stream, buf);
 }
 
-fn main() {
-    
-    let threads = num_cpus::get();
-   
+fn main() {   
     // Let the orchestrator know we're ready
     let mut vsock = VsockStream::connect(&VsockAddr::new(2, 1234)).expect("Failed to connect"); 
     vsock.write(b"ready").expect("Failed to write");
