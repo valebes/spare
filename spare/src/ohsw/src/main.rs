@@ -1,7 +1,6 @@
 //! SPARE Serverless Platform
 //! SPARE is a serverless platform that aims to provide a scalable and efficient serverless platform for edge computing.
 //! The code provided here is a prototype of the SPARE platform.
-#![feature(extract_if)]
 #![feature(future_join)]
 use std::{
     env,
@@ -75,7 +74,7 @@ async fn emergency_controller(
                     orchestrator.set_emergency(true, node.position, 50.0); // RADIUS = 50
                 }
                 Operation::STOP_EMERGENCY => {
-                    orchestrator.set_emergency(false, (0, 0), 0.0);
+                    orchestrator.set_emergency(false, (0.0, 0.0), 0.0);
                 }
                 Operation::END => break,
                 Operation::WRITE_STATS => {
@@ -113,7 +112,7 @@ async fn emergency_controller(
     }
 }
 
-// Main function. It starts the server and the emergency controller/
+// Main function. It starts the server and the emergency controller
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
@@ -133,7 +132,7 @@ async fn main() -> std::io::Result<()> {
     // This is a temporary solution only used for the sake of the experiment.
     let identity = Node {
         address: format!("{worker_address}:{worker_port}"),
-        position: (0, 0),
+        position: (0.0, 0.0),
     };
     info!("Registering node at {iggy_host}:{iggy_port}");
     let _ = iggy_client.register_node(identity.clone()).await;
@@ -158,7 +157,9 @@ async fn main() -> std::io::Result<()> {
 
     // Extract identity (this node) from the list of nodes
     let identity = nodes
-        .extract_if(|n| n.address == format!("{worker_address}:{worker_port}"))
+        .extract_if(.., |n| {
+            n.address == format!("{worker_address}:{worker_port}")
+        })
         .next()
         .unwrap();
     info!("Found {} nodes", nodes.len());

@@ -1,11 +1,12 @@
 //! Orchestrator module. It is responsible for managing the local resources and monitoring the remote nodes
+mod global;
 pub mod global_resources;
 mod local_resources;
 
 use std::sync::{Mutex, RwLock};
 
 use crate::api::resources::Resources;
-use global_resources::Node;
+use global_resources::{NeighborNode, Node};
 use instant_distance::Point;
 use local_resources::LocalResources;
 use log::{error, info, warn};
@@ -49,7 +50,7 @@ impl Orchestrator {
     }
 
     /// Set the emergency mode
-    pub fn set_emergency(&self, emergency: bool, emergency_point: (i32, i32), radius: f32) {
+    pub fn set_emergency(&self, emergency: bool, emergency_point: (f64, f64), radius: f32) {
         if emergency {
             info!(
                 "Entering emergency mode. Emergency point: {:?}",
@@ -77,12 +78,19 @@ impl Orchestrator {
 
     /// Get the number of available nodes
     pub fn number_of_nodes(&self) -> usize {
-        self.global_resources.read().unwrap().len()
-            - self.global_resources.read().unwrap().emergency_nodes.len()
+        // Count the number of nodes that are not in emergency mode
+        self.global_resources
+            .read()
+            .unwrap()
+            .nodes
+            .nodes
+            .iter()
+            .filter(|node| !node.emergency)
+            .count()
     }
 
     /// Get the nth node available in the system
-    pub fn get_remote_nth_node(&self, index: usize) -> Option<Node> {
+    pub fn get_remote_nth_node(&self, index: usize) -> Option<NeighborNode> {
         self.global_resources.read().unwrap().nth(index)
     }
 

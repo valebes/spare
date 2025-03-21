@@ -8,11 +8,11 @@ authors = ["Valerio Besozzi <valerio.besozzi@phd.unipi.it>"]
 name = "ohsw"
 
 [dependencies]
-sqlx = { version = "0.8.2", features = [ "runtime-tokio", "chrono", "sqlite"] }
+sqlx = { version = "0.8.3", features = [ "runtime-tokio", "chrono", "sqlite"] }
 actix-web = "4.9.0"
 chrono = { version = "0.4.38", features = ["serde"] }
 qfilter = "0.2.1"
-ipnetwork = "0.20.0"
+ipnetwork = "0.21.1"
 nix = { version = "0.29.0", features = ["net", "ioctl", "fs"] } 
 libc = "0.2.158"
 serde = { version = "1.0.210", features = ["derive", ] }
@@ -28,5 +28,8 @@ iggy = "0.6.30"
 clap = { version = "4.2.5", features = ["derive"] }
 local-ip-address = "0.6.3"
 instant-distance = "0.6.1"
-rand = "0.8.5"
+rand = "0.9.0"
+rand_distr = "0.5.1"
+longitude = "0.2.1"
+dyn-clone = "1.0.19"
 

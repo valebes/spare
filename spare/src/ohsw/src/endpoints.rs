@@ -67,6 +67,7 @@ async fn offload(
             Some(node) => {
                 // Do not forward request to origin
                 if node
+                    .node
                     .address
                     .contains(req.peer_addr().unwrap().ip().to_string().as_str())
                 {
@@ -76,7 +77,7 @@ async fn offload(
                 // Check if resource are available on the remote node
                 let client = Client::default();
                 let response = client
-                    .get(format!("http://{}/resources", node.address))
+                    .get(format!("http://{}/resources", node.node.address))
                     .send()
                     .await;
                 if response.is_ok() {
@@ -93,15 +94,15 @@ async fn offload(
                         .checked_sub((memory * 1024) as usize);
                     // If resources are available, forward request
                     if vcpu.is_some() && memory.is_some() {
-                        warn!("Forwarding request to {}", node.address);
-                        let body = node.invoke(data.clone()).await; // Forward request
+                        warn!("Forwarding request to {}", node.node.address);
+                        let body = node.node.invoke(data.clone()).await; // Forward request
                         match body {
                             Ok(body) => {
-                                error!("Successfully forwarded request to {}", node.address);
+                                error!("Successfully forwarded request to {}", node.node.address);
                                 return HttpResponse::Ok().body(body);
                             }
                             Err(_) => {
-                                error!("Failed to forward request to {}", node.address);
+                                error!("Failed to forward request to {}", node.node.address);
                                 continue;
                             }
                         }
@@ -164,7 +165,9 @@ async fn start_instance(
     match fc_instance.start().await {
         Ok(_) => {}
         Err(_) => {
-            let _ = instance.delete(&db_pool).await;
+            // If an error occurs, delete the instance and set 'failed' status
+            instance.set_status("failed".to_string());
+            let _ = instance.update(&db_pool).await;
             let _ = fc_instance.delete().await;
             builder
                 .network
@@ -174,6 +177,7 @@ async fn start_instance(
             return Err(InstanceError::Unknown);
         }
     }
+
     info!("Starting instance: {} ip: {}", instance.id, instance.ip);
 
     let (stream, _) = socket.accept().await.unwrap();
@@ -186,20 +190,18 @@ async fn start_instance(
 
     // Check if the instance is ready through the vsock socket
     match message.contains("ready") {
-        true => {
-            instance.set_status("launched".to_string());
-            let _ = instance.update(&db_pool).await;
-        }
+        true => {}
         false => {
-            let _ = instance.delete(&db_pool).await;
-            let _ = fc_instance.stop().await;
+            // If an error occurs, delete the instance and set 'failed' status
+            instance.set_status("failed".to_string());
+            let _ = instance.update(&db_pool).await;
             let _ = fc_instance.delete().await;
             builder
                 .network
                 .lock()
                 .unwrap()
                 .release(fc_instance.get_address());
-            return Err(InstanceError::Timeout);
+            return Err(InstanceError::Unknown);
         }
     }
 
@@ -211,8 +213,8 @@ async fn start_instance(
     let mut res;
     loop {
         if retries > max_retries {
-            let _ = instance.delete(&db_pool).await;
-            let _ = fc_instance.stop().await;
+            instance.set_status("failed".to_string());
+            let _ = instance.update(&db_pool).await;
             let _ = fc_instance.delete().await;
             builder
                 .network
@@ -229,8 +231,8 @@ async fn start_instance(
         if res.is_ok() {
             break;
         } else {
-            // Retry after 50ms
-            sleep(Duration::from_millis(50)).await;
+            // Retry after 10ms
+            sleep(Duration::from_millis(10)).await;
             retries += 1;
         }
     }
