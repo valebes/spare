@@ -1,5 +1,8 @@
 use dyn_clone::DynClone;
 use longitude::Location;
+use simple_cellular::SimpleCellular;
+use uuid::fmt::Simple;
+use std::any::Any;
 
 pub mod simple_cellular;
 pub mod geo_distance;
@@ -8,6 +11,7 @@ pub mod emergency;
 /// Enum that represents the different strategies
 /// available for the Neighbor Node Selection
 /// strategy.
+#[derive(Clone)]
 pub enum NeighborNodeStrategy {
     /// Strategy that uses the Haversine formula to calculate
     /// the distance between two points.
@@ -18,36 +22,87 @@ pub enum NeighborNodeStrategy {
     SimpleCellular,
 }
 
-
 /// Trait that represents a Neighbor Node
+
 pub trait NeighborNode: DynClone {
-    /// Get the ip address of the node
     fn address(&self) -> String;
-
-    /// Get the position of the node
     fn position(&self) -> (f64, f64);
-
-    /// Check if the node is in emergency mode
     fn emergency(&self) -> bool;
-
-    /// Set the emergency mode
     fn set_emergency(&mut self, emergency: bool);
 }
 
+
+dyn_clone::clone_trait_object!(NeighborNode);
+
 pub trait Distance: DynClone {
-    /// Get the distance between two points
+    /// Get the distance between two points + another metric (distance, latency)
     fn distance(&mut self, other: &mut dyn NeighborNode) -> f64;
 }
 
+pub trait Latency: DynClone {
+    /// Get the latency between two points
+    fn latency(&mut self, other: &mut dyn NeighborNodeWithLatency) -> f64;
+}
+
+/// Trait that represents a Neighbor Node with Latency and Distance
+pub trait NeighborNodeWithLatency: NeighborNode + Distance + Latency + DynClone {
+}
+impl<T: NeighborNode + Distance + Latency + DynClone> NeighborNodeWithLatency for T {
+}
+
+dyn_clone::clone_trait_object!(NeighborNodeWithLatency);
+
 /// Trait that represents a Neighbor Node with distance
-pub trait NeighborNodeWithDistance: NeighborNode + Distance + DynClone {}
-impl<T: NeighborNode + Distance + DynClone> NeighborNodeWithDistance for T {}
+pub trait NeighborNodeWithDistance: NeighborNode + Distance + DynClone {
+}
+impl<T: NeighborNode + Distance + DynClone> NeighborNodeWithDistance for T {
+
+}
+
+dyn_clone::clone_trait_object!(NeighborNodeWithDistance);
+
+#[derive(Clone)]
+pub enum NeighborNodeType {
+    Distance(Box<dyn NeighborNodeWithDistance>),
+    Latency(Box<dyn NeighborNodeWithLatency>),
+}
+impl NeighborNode for NeighborNodeType {
+    fn address(&self) -> String {
+        match self {
+            NeighborNodeType::Distance(node) => node.address(),
+            NeighborNodeType::Latency(node) => node.address(),
+        }
+    }
+
+    fn position(&self) -> (f64, f64) {
+        match self {
+            NeighborNodeType::Distance(node) => node.position(),
+            NeighborNodeType::Latency(node) => node.position(),
+        }
+    }
+
+    fn emergency(&self) -> bool {
+        match self {
+            NeighborNodeType::Distance(node) => node.emergency(),
+            NeighborNodeType::Latency(node) => node.emergency(),
+        }
+    }
+
+    fn set_emergency(&mut self, emergency: bool) {
+        match self {
+            NeighborNodeType::Distance(node) => node.set_emergency(emergency),
+            NeighborNodeType::Latency(node) => node.set_emergency(emergency),
+        }
+    }
+}
+
 
 /// Struct that represents the Neighbor Nodes
 /// available in the system.
+#[derive(Clone)]
 pub struct NeighborNodeList {
     /// List of nodes
-    pub nodes: Vec<Box<dyn NeighborNodeWithDistance>>,
+    pub nodes: Vec<Box<NeighborNodeType>>,
     /// Strategy to calculate the distance
     strategy: NeighborNodeStrategy,
     /// Emergency Position and Radius
@@ -76,10 +131,10 @@ impl NeighborNodeList {
     pub fn add_node(&mut self, address: String, position: (f64, f64)) {
         match self.strategy {
             NeighborNodeStrategy::GeoDistance => {
-                self.nodes.push(Box::new(geo_distance::GeoDistance::new(position, address)));
+                self.nodes.push(Box::new(NeighborNodeType::Distance(Box::new(geo_distance::GeoDistance::new(position, address)))));
             }
             NeighborNodeStrategy::SimpleCellular => {
-                self.nodes.push(Box::new(simple_cellular::SimpleCellular::new(position, address)));
+                self.nodes.push(Box::new(NeighborNodeType::Latency(Box::new(simple_cellular::SimpleCellular::new(position, address)))));
             }
         }
     }
@@ -117,15 +172,62 @@ impl NeighborNodeList {
     /// # Returns
     /// * The closest node if it exists
     /// * None if the list is empty
-    pub fn get_closest_node(&mut self, current: &dyn NeighborNodeWithDistance, nth: usize) -> Option<&dyn NeighborNodeWithDistance> {
-        if self.nodes.is_empty() {
-            return None;
+    pub fn get_closest_node(&mut self, nth: usize) -> Option<&dyn NeighborNode> {
+        // The list is already sorted
+        let mut count = 0;
+        for node in self.nodes.iter() {
+            if !node.emergency() {
+                count += 1;
+                if count == nth {
+                    return Some(&**node);
+                }
+            }
         }
-
-        // Here, depending on the strategy, we should calculate the closest node
-        // to the current node.
-        todo!()
+        None
     }
+
+    /// Sort the nodes depending on the strategy
+    /// # Arguments
+    /// * `current` - Current node)
+    pub fn sort(&mut self, current: &mut NeighborNodeType) {
+        match self.strategy {
+            NeighborNodeStrategy::GeoDistance => {
+                self.sort_by_distance(&mut geo_distance::GeoDistance
+                    { position: current.position(), address: current.address(), emergency: current.emergency() });
+            }
+            NeighborNodeStrategy::SimpleCellular => {
+                self.sort_by_latency(&mut simple_cellular::SimpleCellular
+                    { position: current.position(), address: current.address(), emergency: current.emergency(), latency: 0.0 });
+            }
+        }
+    }
+
+    /// Sort the nodes by latency from the current node
+    /// # Arguments
+    /// * `current` - Current node
+    pub fn sort_by_latency(&mut self, current: &mut dyn NeighborNodeWithLatency) {
+        let mut latencies: Vec<(f64, usize)> = self
+            .nodes
+            .iter_mut()
+            .enumerate()
+            .map(|(i, node)| 
+                match node.as_mut() {
+                    NeighborNodeType::Latency(node) => (node.latency(current), i),
+                    _ => panic!("Node is not a latency node"),
+                    
+                })
+            .collect();
+    
+        latencies.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    
+        self.nodes = latencies
+        .into_iter()
+        .map(|(_, i)| dyn_clone::clone_box(&*self.nodes[i])) // Use `dyn_clone` to clone the trait object
+        .collect();
+    }
+        
+        
+    
 
     /// Sort the nodes by distance from the current node
     /// # Arguments
@@ -135,7 +237,12 @@ impl NeighborNodeList {
             .nodes
             .iter_mut()
             .enumerate()
-            .map(|(i, node)| (node.distance(current), i))
+            .map(|(i, node)| 
+                match node.as_mut() {
+                    NeighborNodeType::Distance(node) => (node.distance(current), i),
+                    _ => panic!("Node is not a distance node"),
+                    
+                })
             .collect();
     
         distances.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
@@ -184,12 +291,33 @@ mod tests {
     #[test]
     fn test_sort_by_distance() {
         let mut list = NeighborNodeList::new(NeighborNodeStrategy::GeoDistance);
-        list.add_node("node3".to_string(), (3.0, 3.0));
-        list.add_node("node2".to_string(), (2.0, 2.0));
-        list.add_node("node1".to_string(), (1.0, 1.0));
+        list.add_node("node3".to_string(), (35.6764, 139.650));
+        list.add_node("node2".to_string(), (40.7128, 74.0060));
+        list.add_node("node1".to_string(), (48.8575, 2.3514));
 
         list.sort_by_distance(&mut geo_distance::GeoDistance
-            { position: (0.0, 0.0), address: "current".to_string(), emergency: false });
+            { position: (45.4685, 9.1824), address: "current".to_string(), emergency: false });
+        assert_eq!(list.nodes[0].address(), "node1");
+    }
+
+    #[test]
+    fn test_sort_by_latency() {
+        let mut list = NeighborNodeList::new(NeighborNodeStrategy::SimpleCellular);
+        list.add_node("node3".to_string(), (35.6764, 139.650));
+        list.add_node("node2".to_string(), (40.7128, 74.0060));
+        list.add_node("node1".to_string(), (48.8575, 2.3514));
+
+        list.sort_by_latency(&mut simple_cellular::SimpleCellular
+            { position: (45.4685, 9.1824), address: "current".to_string(), emergency: false, latency: 0.0 });
+        for node in list.nodes.iter_mut() {
+            // print latency
+            match node.as_mut() {
+                NeighborNodeType::Latency(node) => println!("Latency: {}", node.latency(&mut simple_cellular::SimpleCellular
+                    { position: (45.4685, 9.1824), address: "current".to_string(), emergency: false, latency: 0.0 })),
+                _ => (),
+                
+            }
+        }
         assert_eq!(list.nodes[0].address(), "node1");
     }
 }

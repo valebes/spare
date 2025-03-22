@@ -1,7 +1,7 @@
 //! SPARE Serverless Platform
 //! SPARE is a serverless platform that aims to provide a scalable and efficient serverless platform for edge computing.
 //! The code provided here is a prototype of the SPARE platform.
-#![feature(future_join)]
+
 use std::{
     env,
     fs::File,

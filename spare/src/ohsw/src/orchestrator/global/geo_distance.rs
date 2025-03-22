@@ -52,27 +52,3 @@ impl GeoDistance {
     }
 }
 
-/// Given a NeighborNodeList, return the closest nth-node to the given position
-/// # Arguments
-/// * `nodes` - List of nodes
-/// * `position` - Position to calculate the distance
-/// # Returns
-/// * The closest nth node that is not in emergency mode
-/// * None if no node is available
-pub fn get_nth_closest_node(
-    nodes: &NeighborNodeList,
-    position: (f64, f64),
-    n: usize,
-) -> Option<&dyn NeighborNode> {
-    // The list is already sorted by distance
-    let mut count = 0;
-    for node in nodes.nodes.iter() {
-        if !node.emergency() {
-            count += 1;
-            if count == n {
-                return Some(&**node);
-            }
-        }
-    }
-    None
-}
