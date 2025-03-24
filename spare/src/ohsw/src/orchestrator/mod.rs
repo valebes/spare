@@ -1,15 +1,22 @@
 //! Orchestrator module. It is responsible for managing the local resources and monitoring the remote nodes
 mod global;
-pub mod global_resources;
 mod local_resources;
 
 use std::sync::{Mutex, RwLock};
 
-use crate::api::resources::Resources;
-use global_resources::{NeighborNode, Node};
-use instant_distance::Point;
+use crate::api::{invoke::InvokeFunction, resources::Resources};
+use actix_web::web;
+use awc::Client;
+use global::{geo_distance::GeoDistance, simple_cellular::SimpleCellular, *};
 use local_resources::LocalResources;
 use log::{error, info, warn};
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub struct Node {
+    pub address: String, // Ip:Port
+    pub position: (f64, f64),
+}
 
 /// Error returned by the orchestrator
 pub enum OrchestratorError {
@@ -21,7 +28,8 @@ pub enum OrchestratorError {
 pub struct Orchestrator {
     in_emergency_area: Mutex<bool>,
     resources: Mutex<local_resources::LocalResources>,
-    global_resources: RwLock<global_resources::GlobalResources>,
+    identity: RwLock<GeoDistance>,
+    global_resources: RwLock<NeighborNodeList>,
 }
 
 impl Orchestrator {
@@ -32,16 +40,41 @@ impl Orchestrator {
     /// # Returns
     /// * A new orchestrator
     pub fn new(nodes: Vec<Node>, identity: Node) -> Self {
+        let mut strategy = NeighborNodeStrategy::GeoDistance;
+        // Read the strategy from the environment
+        if let Ok(strategy_str) = std::env::var("STRATEGY") {
+            match strategy_str.as_str() {
+                "SimpleCellular" => strategy = NeighborNodeStrategy::SimpleCellular,
+                "GeoDistance" => strategy = NeighborNodeStrategy::GeoDistance,
+                _ => error!("Unknown strategy: {}", strategy_str),
+            }
+        }
+
+        let mut neighbor_nodes = NeighborNodeList::new(strategy);
+        for node in nodes {
+            neighbor_nodes.add_node(node.address, node.position);
+        }
+
         Self {
             in_emergency_area: Mutex::new(false),
             resources: Mutex::new(local_resources::LocalResources::new()),
-            global_resources: RwLock::new(global_resources::GlobalResources::new(nodes, identity)),
+            identity: RwLock::new(GeoDistance::new(identity.position, identity.address)),
+            global_resources: RwLock::new(neighbor_nodes),
         }
     }
 
+    /// Sort the nodes based on the strategy
+    pub fn sort_nodes(&self) {
+        self.global_resources
+            .write()
+            .unwrap()
+            .sort(&mut self.get_identity());
+    }
+
     /// Get the identity of the node itself
-    pub fn get_identity(&self) -> Node {
-        self.global_resources.read().unwrap().identity.clone()
+    pub fn get_identity(&self) -> GeoDistance {
+        let lock = self.identity.write().unwrap();
+        lock.clone()
     }
 
     /// Get if the node is in the emergency area
@@ -50,17 +83,19 @@ impl Orchestrator {
     }
 
     /// Set the emergency mode
-    pub fn set_emergency(&self, emergency: bool, emergency_point: (f64, f64), radius: f32) {
+    pub fn set_emergency(&self, emergency: bool, emergency_point: (f64, f64), radius: f64) {
         if emergency {
             info!(
                 "Entering emergency mode. Emergency point: {:?}",
                 emergency_point
             );
             let mut lock = self.global_resources.write().unwrap();
-            lock.compute_emergency_nodes(emergency_point, radius);
-            if lock.identity.distance(&Node {
+            lock.set_emergency(emergency_point, radius);
+
+            if self.get_identity().distance(&mut GeoDistance {
                 address: "emergency".to_string(),
                 position: emergency_point,
+                emergency: false,
             }) <= radius
             {
                 error!("Node is in the emergency zone");
@@ -68,10 +103,7 @@ impl Orchestrator {
             }
         } else {
             info!("Leaving emergency mode");
-            self.global_resources
-                .write()
-                .unwrap()
-                .clean_emergency_nodes();
+            self.global_resources.write().unwrap().clear_emergency();
             *self.in_emergency_area.lock().unwrap() = false;
         }
     }
@@ -83,15 +115,27 @@ impl Orchestrator {
             .read()
             .unwrap()
             .nodes
-            .nodes
             .iter()
-            .filter(|node| !node.emergency)
+            .filter(|node| !node.emergency())
             .count()
     }
 
     /// Get the nth node available in the system
-    pub fn get_remote_nth_node(&self, index: usize) -> Option<NeighborNode> {
-        self.global_resources.read().unwrap().nth(index)
+    pub fn get_remote_nth_node(&self, index: usize) -> Option<Box<dyn NeighborNode>> {
+        let lock = self.global_resources.read().unwrap();
+        lock.nodes.get(index).map(|node| match lock.strategy() {
+            NeighborNodeStrategy::SimpleCellular => Box::new(SimpleCellular {
+                address: node.address().clone(),
+                position: node.position(),
+                emergency: node.emergency(),
+                latency: 0.0,
+            }) as Box<dyn NeighborNode>,
+            NeighborNodeStrategy::GeoDistance => Box::new(GeoDistance {
+                address: node.address().clone(),
+                position: node.position(),
+                emergency: node.emergency(),
+            }) as Box<dyn NeighborNode>,
+        })
     }
 
     /// Get the resources available in the node
@@ -144,5 +188,38 @@ impl Orchestrator {
     pub fn release_resources(&self, cpus: usize) -> Result<(), OrchestratorError> {
         info!("Releasing {} cpus", cpus);
         self.resources.lock().unwrap().release_cpus(cpus)
+    }
+}
+
+// TODO: Move this inside the node module
+pub enum InvokeError {
+    Unknown,
+}
+/// Invoke a function in a remote node
+pub async fn invoke<T: NeighborNode + ?Sized>(
+    node: &mut T,
+    mut data: InvokeFunction,
+) -> Result<web::Bytes, InvokeError> {
+    data.hops += 1;
+    let client = Client::default();
+
+    let invoke = client
+        .post(format!("http://{}/invoke", node.address()))
+        .content_type("application/json")
+        .send_json(&data)
+        .await;
+
+    if invoke.is_err() {
+        return Err(InvokeError::Unknown);
+    } else {
+        let mut invoke = invoke.unwrap();
+        if invoke.status().is_success() {
+            match invoke.body().await {
+                Ok(body) => Ok(body),
+                Err(_) => Err(InvokeError::Unknown),
+            }
+        } else {
+            Err(InvokeError::Unknown)
+        }
     }
 }

@@ -24,7 +24,8 @@ use iggy::{
     utils::expiry::IggyExpiry,
 };
 use log::{error, info, warn};
-use rand::{thread_rng, Rng};
+use longitude::Location;
+use rand::{rng, Rng};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -32,6 +33,9 @@ use tokio::{
     sync::Mutex,
     time::{sleep, Instant},
 };
+
+mod dataset;
+use dataset::*;
 
 const STREAM_ID: u32 = 1;
 const TOPIC_ID: u32 = 1;
@@ -49,27 +53,24 @@ struct Args {
     #[arg(short, long, default_value = "16")]
     number_of_nodes: i32,
 
-    #[arg(short, long, default_value = "100")]
-    x: i32,
-
-    #[arg(short, long, default_value = "150")]
-    y: i32,
+    #[arg(short, long, default_value = "1000")]
+    emergency_radius: f64, // Radius in meters
 
     #[arg(short, long, default_value = "10")]
     iterations: i32,
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 struct Node {
     address: String, // Ip:Port
-    position: (i32, i32),
+    position: (f64, f64),
 }
 impl Node {
-    fn distance(&self, other: &Self) -> f32 {
-        // Euclidean distance
-        (((self.position.0 - other.position.0).pow(2) + (self.position.1 - other.position.1).pow(2))
-            as f32)
-            .sqrt()
+    fn distance(&self, other: &Self) -> f64 {
+        let location_a = Location::from(self.position.0, self.position.1);
+        let location_b = Location::from(other.position.0, other.position.1);
+
+        location_a.distance(&location_b).meters()
     }
 }
 
@@ -247,27 +248,6 @@ async fn stop_emergency(client: &IggyClient) -> Result<(), IggyError> {
     .await
 }
 
-fn generate_points(nodes: Vec<Node>, max_x: i32, max_y: i32) -> Vec<Node> {
-    let mut position = Vec::new();
-    for i in 0..max_x {
-        for j in 0..max_y {
-            position.push((i, j));
-        }
-    }
-
-    let mut rng = thread_rng();
-    nodes
-        .iter()
-        .map(|node| {
-            let (x, y) = position.remove(rng.gen_range(0..position.len()));
-            Node {
-                address: node.address.clone(),
-                position: (x, y),
-            }
-        })
-        .collect()
-}
-
 async fn test(
     client: &IggyClient,
     iterations: i32,
@@ -289,7 +269,7 @@ async fn test(
         for _j in 0..(request_per_epoch) {
             let latency_per_epoch_tmp_copy = Arc::clone(&latency_per_epoch_tmp);
             let latency_tmp = Arc::clone(&latency);
-            let node = nodes.get(thread_rng().gen_range(0..nodes.len())).unwrap();
+            let node = nodes.get(rng().random_range(0..nodes.len())).unwrap();
             let address = node.address.clone();
 
             let completed_tmp = Arc::clone(&completed);
@@ -318,7 +298,7 @@ async fn test(
                             Url::from_str(&format!("http://{}/invoke", address).as_str()).unwrap(),
                         )
                         .json(&invoke_function)
-                        .timeout(Duration::from_millis(5000))
+                        .timeout(Duration::from_millis(5000)) // Timeout after 5 seconds
                         .send()
                         .await;
 
@@ -337,7 +317,7 @@ async fn test(
                                 break;
                             } else {
                                 error!("Error: {}", res.text().await.unwrap());
-                                sleep(Duration::from_millis(100)).await; // Retry after 100ms
+                                sleep(Duration::from_millis(100)).await; // Retry after 100ms TODO: Revise this
                                 total_time += end.duration_since(start).as_millis();
                                 failed_tmp.fetch_add(1, Ordering::SeqCst);
                                 continue;
@@ -380,11 +360,11 @@ async fn test(
                 payload: Some(vec![
                     Node {
                         address: start_time,
-                        position: (0, 0),
+                        position: (0.0, 0.0),
                     },
                     Node {
                         address: end_time,
-                        position: (0, 0),
+                        position: (0.0, 0.0),
                     },
                 ]),
             },
@@ -453,27 +433,34 @@ async fn main() {
 
     init_system(&client).await;
 
-    let nodes = wait_for_nodes(&client, args.number_of_nodes).await.unwrap();
+    let mut nodes = wait_for_nodes(&client, args.number_of_nodes).await.unwrap();
 
-    let mut nodes = generate_points(nodes.clone(), args.x, args.y);
+    generate_points_from_csv(&mut nodes, "../data/edge_nodes.csv");
 
     // Generate random point for the emergency
-    let node_tmp = Node {
+    let mut emergency = vec![Node {
         address: "emergency".to_string(),
-        position: (0, 0),
-    };
-    let mut emergency = generate_points(vec![node_tmp.clone()], args.x, args.y).remove(0);
+        position: (0.0, 0.0),
+    }];
+    generate_points_from_csv(&mut emergency, "../data/edge_nodes.csv");
 
-    // if more than 1/3 of nodes are 50 meters away from the emergency point, recompute emergency node
+    let mut emergency = emergency.remove(0);
+
+    // if more than 1/3 of nodes are "x" meters away from the emergency point, recompute emergency node
     while nodes
         .iter()
-        .filter(|node| node.distance(&emergency) <= 50.0)
+        .filter(|node| node.distance(&emergency) <= args.emergency_radius)
         .count()
         != (nodes.len() / 3)
     {
         println!("Recomputing emergency node");
-        nodes = generate_points(nodes.clone(), args.x, args.y);
-        emergency = generate_points(vec![node_tmp.clone()], args.x, args.y).remove(0);
+        generate_points_from_csv(&mut nodes, "../data/edge_nodes.csv");
+        let mut tmp = vec![Node {
+            address: "emergency".to_string(),
+            position: (0.0, 0.0),
+        }];
+        generate_points_from_csv(&mut tmp, "../data/edge_nodes.csv");
+        emergency = tmp.remove(0);
     }
 
     println!("Emergency node position: {:?}", emergency.position);

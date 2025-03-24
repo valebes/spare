@@ -1,6 +1,6 @@
 use longitude::Location;
 
-use super::{Distance, NeighborNode, NeighborNodeList, NeighborNodeWithDistance};
+use super::{Distance, NeighborNode};
 
 /// Neighbour Node Selection strategy in which the distance
 /// is calculated using the Haversine formula.
@@ -23,7 +23,7 @@ impl NeighborNode for GeoDistance {
     fn emergency(&self) -> bool {
         self.emergency
     }
-    
+
     fn set_emergency(&mut self, emergency: bool) {
         self.emergency = emergency;
     }
@@ -51,4 +51,3 @@ impl GeoDistance {
         }
     }
 }
-

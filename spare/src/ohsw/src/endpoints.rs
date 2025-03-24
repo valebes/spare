@@ -62,13 +62,16 @@ async fn offload(
     let cpus = data.vcpus;
     let memory = data.memory;
 
+    // Sort the list
+    orchestrator.sort_nodes(); // TODO: Remove from here and implement a timed job
+
+    // Iterate over the nodes
     for i in 0..orchestrator.number_of_nodes() {
         match orchestrator.get_remote_nth_node(i) {
-            Some(node) => {
+            Some(mut node) => {
                 // Do not forward request to origin
                 if node
-                    .node
-                    .address
+                    .address()
                     .contains(req.peer_addr().unwrap().ip().to_string().as_str())
                 {
                     continue;
@@ -77,7 +80,7 @@ async fn offload(
                 // Check if resource are available on the remote node
                 let client = Client::default();
                 let response = client
-                    .get(format!("http://{}/resources", node.node.address))
+                    .get(format!("http://{}/resources", node.address()))
                     .send()
                     .await;
                 if response.is_ok() {
@@ -94,15 +97,15 @@ async fn offload(
                         .checked_sub((memory * 1024) as usize);
                     // If resources are available, forward request
                     if vcpu.is_some() && memory.is_some() {
-                        warn!("Forwarding request to {}", node.node.address);
-                        let body = node.node.invoke(data.clone()).await; // Forward request
+                        warn!("Forwarding request to {}", node.address());
+                        let body = crate::orchestrator::invoke(&mut *node, data.clone()).await;
                         match body {
                             Ok(body) => {
-                                error!("Successfully forwarded request to {}", node.node.address);
+                                error!("Successfully forwarded request to {}", node.address());
                                 return HttpResponse::Ok().body(body);
                             }
                             Err(_) => {
-                                error!("Failed to forward request to {}", node.node.address);
+                                error!("Failed to forward request to {}", node.address());
                                 continue;
                             }
                         }

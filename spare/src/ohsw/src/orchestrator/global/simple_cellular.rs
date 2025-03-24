@@ -1,8 +1,9 @@
-use longitude::{Distance, Location};
+use log::info;
+use longitude::Location;
 use rand::thread_rng;
-use rand_distr::{Distribution, Exp, Poisson};
+use rand_distr::{Distribution, Exp};
 
-use super::{NeighborNode, NeighborNodeList, NeighborNodeWithLatency};
+use super::{NeighborNode, NeighborNodeWithLatency};
 
 /// Neighbour Node Selection strategy in which the distance
 /// is calculated with a simple model that describes the
@@ -43,7 +44,7 @@ impl super::Distance for SimpleCellular {
 }
 impl super::Latency for SimpleCellular {
     fn latency(&mut self, node: &mut dyn NeighborNodeWithLatency) -> f64 {
-        if  self.latency == 0.0 {
+        if self.latency == 0.0 {
             self.estimate_latency(node);
         }
         self.latency
@@ -53,7 +54,7 @@ impl SimpleCellular {
     /// Create a new SimpleCellular
     /// # Arguments
     /// * `position` - Position of the node
-    /// * `address` - Address of the node 
+    /// * `address` - Address of the node
     /// # Returns
     /// * A new SimpleCellular
     pub fn new(position: (f64, f64), address: String) -> Self {
@@ -65,51 +66,85 @@ impl SimpleCellular {
         }
     }
 
-    /// Estimate the latency between the node and the current node
+    /// Estimate the latency between the current node and another node
     /// # Arguments
-    /// * `node` - Node to calculate the latency
+    /// * `node` - The target node to calculate the latency
     /// # Returns
-    /// * The latency between the node and the current node
-    /// # Note 
-    /// This function uses a simple model to calculate the latency
-    /// between two nodes.
-    /// The speed of light is considered to be 299,792,458 m/s.
-    /// The distance is calculated using the Haversine formula.
-    /// The Haversine formula calculates the distance between two
-    /// points on the surface of a sphere given their longitudes
-    /// and latitudes.
+    /// * Updates the `latency` field of the current node with the estimated latency
+    /// # Note
+    /// This function uses a simplified model to estimate latency based on:
+    /// - The speed of light in air and fiber
+    /// - The distance between nodes (calculated using the Haversine formula)
+    /// - Transmission and queuing delays in the network
+    /// - Assumptions about access and backhaul network properties
     pub fn estimate_latency(&mut self, node: &mut dyn NeighborNodeWithLatency) {
         let location_a = Location::from(self.position.0, self.position.1);
         let location_b = Location::from(node.position().0, node.position().1);
 
         let distance = location_a.distance(&location_b).meters();
-        
+
         // Constants
-        const SPEED_OF_LIGHT: f64 = 3.0e8; // Speed of light in m/s
-        const PACKET_SIZE: f64 = 1500.0 * 8.0; // Packet size in bits
-        const BANDWIDTH: f64 = 1000.0 * 1e6; // 1000 Mbps in bits per second (i.e., 1 Gbps in 5G)
-        const MEAN_DELAY: f64 = 0.0005;  // Mean delay in seconds
-        const MEAN_HOP_DISTANCE: f64 = 300.0; // Mean distance between base stations in meters
-        
+        const SPEED_OF_LIGHT_AIR: f64 = 3.0e8; // Speed of light in air (m/s)
+        const SPEED_OF_LIGHT_FIBER: f64 = 3.0e8 / 1.5; // Speed of light in fiber (m/s)
 
-        // Compute number of hops (i.e., one base station per km)
-        let hops = (distance / MEAN_HOP_DISTANCE).ceil() as u32;
+        const PACKET_SIZE: f64 = 1500.0 * 8.0; // Packet size in bits (1500 bytes)
+        const ACCESS_BANDWIDTH: f64 = 1000.0 * 1e6; // Access network bandwidth (1 Gbps)
+        const BACKHAUL_BANDWIDTH: f64 = 10.0 * 1e9; // Backhaul network bandwidth (10 Gbps)
+        const MAX_WIRELESS_DISTANCE: f64 = 500.0; // Maximum wireless antenna range (meters)
+        const MAX_BACKHAUL_DISTANCE: f64 = 10000.0; // Maximum fiber backhaul distance (10 km)
 
-        // Calculate propagation delay
-        let propagation_delay = distance / SPEED_OF_LIGHT;
+        // Determine the number of hops
+        let same_bs = distance <= MAX_WIRELESS_DISTANCE; // Check if nodes are under the same base station
+        let access_hops = if same_bs { 1 } else { 2 }; // One hop if same BS, two hops otherwise
 
-        // Calculate transmission delay
-        let transmission_delay = PACKET_SIZE / BANDWIDTH;
+        // Compute propagation delays
+        let propagation_delay_access = distance.min(MAX_WIRELESS_DISTANCE) / SPEED_OF_LIGHT_AIR;
 
-        // Simulate queuing/processing delay
-        let exp_distribution = Exp::new(1.0 / MEAN_DELAY).unwrap();
+        let mut backhaul_distance = 0.0;
 
-        // Total latency
-        self.latency = propagation_delay;
-        for _ in 0..hops {
-            self.latency += transmission_delay + exp_distribution.sample(&mut thread_rng()); 
+        let backhaul_hops = if same_bs {
+            0 // No backhaul needed if nodes are under the same BS
+        } else {
+            backhaul_distance = distance - MAX_WIRELESS_DISTANCE;
+            (backhaul_distance / MAX_BACKHAUL_DISTANCE).ceil() as u32 // Calculate backhaul hops
+        };
+
+        let propagation_delay_backhaul = if backhaul_hops > 0 {
+            backhaul_distance / SPEED_OF_LIGHT_FIBER
+        } else {
+            0.0
+        };
+
+        // Compute transmission delays
+        let transmission_delay_access = PACKET_SIZE / ACCESS_BANDWIDTH; // Transmission delay in access network
+        let transmission_delay_backhaul = PACKET_SIZE / BACKHAUL_BANDWIDTH; // Transmission delay in backhaul network
+
+        // **Queuing delay model**
+        let exp_distribution = Exp::new(1.0 / 0.0005).unwrap(); // Exponential distribution for queuing delay
+
+        // Compute total latency
+        self.latency = propagation_delay_access * access_hops as f64; // Start with access propagation delay
+                                                                      // Add access network delays (queuing + transmission)
+        for _ in 0..access_hops {
+            let queuing_delay = exp_distribution.sample(&mut thread_rng());
+            self.latency += queuing_delay + transmission_delay_access;
         }
-    
-        println!("Estimated 5G latency: {}", self.latency);
+
+        // Add backhaul network delays (propagation + queuing + transmission)
+        self.latency += propagation_delay_backhaul * backhaul_hops as f64;
+        for _ in 0..backhaul_hops {
+            let queuing_delay = exp_distribution.sample(&mut thread_rng());
+            self.latency += queuing_delay + transmission_delay_backhaul;
+        }
+
+        info!(
+            "Estimated 5G latency ({}): {:.6} seconds",
+            if same_bs {
+                "Same BS"
+            } else {
+                "Two BSs + Backhaul"
+            },
+            self.latency
+        );
     }
 }

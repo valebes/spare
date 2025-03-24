@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use crate::orchestrator::global_resources::Node;
 use iggy::{
     client::{Client, MessageClient, UserClient},
     clients::client::IggyClient,
@@ -11,6 +10,8 @@ use iggy::{
     users::defaults::{DEFAULT_ROOT_PASSWORD, DEFAULT_ROOT_USERNAME},
 };
 use serde::{Deserialize, Serialize};
+
+use crate::orchestrator::Node;
 
 const STREAM_ID: u32 = 1;
 const TOPIC_ID: u32 = 1;
