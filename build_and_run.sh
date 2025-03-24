@@ -22,6 +22,9 @@ DATABASE_URL=$ROOT_DIR/data/db.db
 # Firecracker executable
 FIRECRACKER_EXECUTABLE=$ROOT_DIR/data/firecracker
 
+rustup override set nightly
+rustup update
+
 # Clean Previous Data
 rm node_*
 
