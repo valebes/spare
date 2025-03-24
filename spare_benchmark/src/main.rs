@@ -56,6 +56,10 @@ struct Args {
     #[arg(short, long, default_value = "1000")]
     emergency_radius: f64, // Radius in meters
 
+    // Path for the dataset
+    #[arg(short, long)]
+    dataset: String,
+
     #[arg(short, long, default_value = "10")]
     iterations: i32,
 }
