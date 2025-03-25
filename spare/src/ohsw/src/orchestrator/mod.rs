@@ -129,6 +129,7 @@ impl Orchestrator {
                 position: node.position(),
                 emergency: node.emergency(),
                 latency: 0.0,
+                last_update: std::time::Instant::now(),
             }) as Box<dyn NeighborNode>,
             NeighborNodeStrategy::GeoDistance => Box::new(GeoDistance {
                 address: node.address().clone(),

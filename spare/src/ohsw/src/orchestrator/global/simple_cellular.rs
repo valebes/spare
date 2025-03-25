@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use log::info;
 use longitude::Location;
 use rand::thread_rng;

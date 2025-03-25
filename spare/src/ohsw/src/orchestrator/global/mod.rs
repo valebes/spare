@@ -208,6 +208,7 @@ impl NeighborNodeList {
                     address: current.address(),
                     emergency: current.emergency(),
                     latency: 0.0,
+                    last_update: std::time::Instant::now(),
                 });
             }
         }
@@ -319,6 +320,7 @@ mod tests {
             address: "current".to_string(),
             emergency: false,
             latency: 0.0,
+            last_update: std::time::Instant::now(),
         });
         for node in list.nodes.iter_mut() {
             // print latency
@@ -329,7 +331,8 @@ mod tests {
                         position: (45.4685, 9.1824),
                         address: "current".to_string(),
                         emergency: false,
-                        latency: 0.0
+                        latency: 0.0,
+                        last_update: std::time::Instant::now(),
                     })
                 ),
                 _ => (),
