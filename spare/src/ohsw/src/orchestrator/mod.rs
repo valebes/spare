@@ -46,7 +46,7 @@ impl Orchestrator {
             match strategy_str.as_str() {
                 "SimpleCellular" => strategy = NeighborNodeStrategy::SimpleCellular,
                 "GeoDistance" => strategy = NeighborNodeStrategy::GeoDistance,
-                _ => error!("Unknown strategy: {}", strategy_str),
+                _ => error!("Unknown strategy: {}.", strategy_str),
             }
         }
 

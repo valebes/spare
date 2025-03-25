@@ -412,7 +412,7 @@ async fn main() {
             // Check if the file exists
             let path = Path::new(&val);
             if !path.exists() {
-                panic!("Function image {} does not exist", val);
+                //panic!("Function image {} does not exist", val); // Commented out for now, as the function image may reside in a different location depoending on the node
             }
             function_path = val;
         }

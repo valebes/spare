@@ -16,6 +16,7 @@ pub struct SimpleCellular {
     pub address: String,
     pub emergency: bool,
     pub latency: f64,
+    pub last_update: Instant, // Last time the node was updated
 }
 impl NeighborNode for SimpleCellular {
     fn address(&self) -> String {
@@ -44,7 +45,8 @@ impl super::Distance for SimpleCellular {
 }
 impl super::Latency for SimpleCellular {
     fn latency(&mut self, node: &mut dyn NeighborNodeWithLatency) -> f64 {
-        if self.latency == 0.0 {
+        if self.latency == 0.0 || self.last_update.elapsed().as_secs() > 30 {
+            self.last_update = Instant::now();
             self.estimate_latency(node);
         }
         self.latency
@@ -63,6 +65,7 @@ impl SimpleCellular {
             address,
             emergency: false,
             latency: 0.0,
+            last_update: Instant::now(),
         }
     }
 
