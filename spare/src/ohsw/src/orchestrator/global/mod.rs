@@ -1,4 +1,5 @@
 use dyn_clone::DynClone;
+use emergency::Emergency;
 
 pub mod emergency;
 pub mod geo_distance;
@@ -19,7 +20,6 @@ pub enum NeighborNodeStrategy {
 }
 
 /// Trait that represents a Neighbor Node
-
 pub trait NeighborNode: DynClone {
     fn address(&self) -> String;
     fn position(&self) -> (f64, f64);
@@ -33,7 +33,6 @@ pub trait Distance: DynClone {
     /// Get the distance between two points + another metric (distance, latency)
     fn distance(&mut self, other: &mut dyn NeighborNode) -> f64;
 }
-
 pub trait Latency: DynClone {
     /// Get the latency between two points
     fn latency(&mut self, other: &mut dyn NeighborNodeWithLatency) -> f64;
@@ -98,7 +97,7 @@ pub struct NeighborNodeList {
     /// Strategy to calculate the distance
     strategy: NeighborNodeStrategy,
     /// Emergency Position and Radius
-    emergency: Option<(f64, f64, f64)>, // (Longitude, Latitude, Radius in meters)
+    emergency: Option<Emergency>, // (Longitude, Latitude, Radius in meters)
 }
 impl NeighborNodeList {
     /// Create a new empty NeighborNodeList.
@@ -148,17 +147,13 @@ impl NeighborNodeList {
     /// # Arguments
     /// * 'position' - Position of the emergency as (Longitude, Latitude)
     /// * 'radius' - Radius of the emergency in meters
-    pub fn set_emergency(&mut self, position: (f64, f64), radius: f64) {
-        self.emergency = Some((position.0, position.1, radius));
+    pub fn set_emergency(&mut self, mut em_pos: Emergency) {
         for node in self.nodes.iter_mut() {
-            let mut emergency = emergency::Emergency {
-                position: (position.0, position.1),
-                radius,
-            };
-            if emergency.distance(&mut **node) <= emergency.radius {
+            if em_pos.distance(&mut **node) <= em_pos.radius {
                 node.set_emergency(true);
             }
         }
+        self.emergency = Some(em_pos);
     }
 
     /// Clean the emergency
@@ -176,7 +171,7 @@ impl NeighborNodeList {
     /// # Returns
     /// * The closest node if it exists
     /// * None if the list is empty
-    pub fn get_closest_node(&self, nth: usize) -> Option<&dyn NeighborNode> {
+    pub fn get_nth(&self, nth: usize) -> Option<&dyn NeighborNode> {
         // The list is already sorted
         let mut count = 0;
         for node in self.nodes.iter() {
@@ -278,7 +273,11 @@ mod tests {
         list.add_node("node1".to_string(), (0.0, 0.0));
         list.add_node("node2".to_string(), (1.0, 1.0));
         list.add_node("node3".to_string(), (2.0, 2.0));
-        list.set_emergency((0.0, 0.0), 100.0);
+        let emergency = Emergency {
+            position: (0.0, 0.0),
+            radius: 100.0,
+        };
+        list.set_emergency(emergency);
         assert_eq!(list.nodes.iter().filter(|node| node.emergency()).count(), 1);
     }
 
@@ -288,7 +287,11 @@ mod tests {
         list.add_node("node1".to_string(), (0.0, 0.0));
         list.add_node("node2".to_string(), (1.0, 1.0));
         list.add_node("node3".to_string(), (2.0, 2.0));
-        list.set_emergency((0.0, 0.0), 100.0);
+        let emergency = Emergency {
+            position: (0.0, 0.0),
+            radius: 100.0,
+        };
+        list.set_emergency(emergency);
         list.clear_emergency();
         assert_eq!(list.nodes.iter().filter(|node| node.emergency()).count(), 0);
     }

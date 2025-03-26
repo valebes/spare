@@ -78,6 +78,20 @@ impl Node {
     }
 }
 
+#[derive(Deserialize, Serialize)]
+struct Emergency {
+    /// The position of the emergency point
+    position: (f64, f64),
+    /// The radius of the emergency point
+    radius: f64,
+}
+
+#[derive(Deserialize, Serialize)]
+struct Period {
+    start: String,
+    end: String,
+}
+
 #[derive(PartialEq, Eq, Deserialize, Serialize)]
 enum Operation {
     START_EMERGENCY = 0,
@@ -88,10 +102,18 @@ enum Operation {
     WRITE_STATS = 5,
 }
 
+// Or a Vec of Nodes or a single emergency point
+#[derive(Deserialize, Serialize)]
+pub enum Payload {
+    Nodes(Vec<Node>),
+    Emergency(Emergency),
+    Period(Period),
+}
+
 #[derive(Deserialize, Serialize)]
 struct Message {
     op: Operation,
-    payload: Option<Vec<Node>>,
+    payload: Option<Payload>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -180,7 +202,7 @@ async fn receive_message(client: &IggyClient) -> Result<Message, IggyError> {
 
 // Wait for nodes to be ready
 async fn wait_for_nodes(client: &IggyClient, number_of_nodes: i32) -> Result<Vec<Node>, IggyError> {
-    let mut nodes = Vec::new();
+    let mut nodes: Vec<Node> = Vec::new();
     let consumer = Consumer::new(Identifier::named("master").unwrap());
 
     loop {
@@ -212,13 +234,17 @@ async fn wait_for_nodes(client: &IggyClient, number_of_nodes: i32) -> Result<Vec
 
             let msg = msg.unwrap();
 
-            if msg.op == Operation::ANNOUNCE {
-                let node = msg.payload.unwrap();
-                info!(
-                    "Registered node with ip: {} and position: {:?}",
-                    node[0].address, node[0].position
-                );
-                nodes.extend(node);
+            match msg.payload {
+                Some(Payload::Nodes(tmp)) => {
+                    info!(
+                        "Registered node with ip: {} and position: {:?}",
+                        nodes[0].address, nodes[0].position
+                    );
+                    nodes.extend(tmp);
+                }
+                _ => {
+                    error!("Unexpected payload type");
+                }
             }
         }
 
@@ -228,13 +254,13 @@ async fn wait_for_nodes(client: &IggyClient, number_of_nodes: i32) -> Result<Vec
     }
 }
 
-async fn start_emergency(client: &IggyClient, emergency: Node) -> Result<(), IggyError> {
+async fn start_emergency(client: &IggyClient, emergency: Emergency) -> Result<(), IggyError> {
     send_message(
         &client,
         BROADCAST_PARTITION_ID,
         Message {
             op: Operation::START_EMERGENCY,
-            payload: Some(vec![emergency]),
+            payload: Some(Payload::Emergency(emergency)),
         },
     )
     .await
@@ -361,16 +387,10 @@ async fn test(
             BROADCAST_PARTITION_ID,
             Message {
                 op: Operation::WRITE_STATS,
-                payload: Some(vec![
-                    Node {
-                        address: start_time,
-                        position: (0.0, 0.0),
-                    },
-                    Node {
-                        address: end_time,
-                        position: (0.0, 0.0),
-                    },
-                ]),
+                payload: Some(Payload::Period(Period {
+                    start: start_time,
+                    end: end_time,
+                })),
             },
         )
         .await
@@ -482,7 +502,7 @@ async fn main() {
         BROADCAST_PARTITION_ID,
         Message {
             op: Operation::ADD_NODES,
-            payload: Some(nodes.clone()),
+            payload: Some(Payload::Nodes(nodes.clone())),
         },
     )
     .await
@@ -500,7 +520,16 @@ async fn main() {
         test(&client, iterations, nodes.clone(), &function_path).await;
 
     println!("EMERGENCY SCENARIO");
-    start_emergency(&client, emergency.clone()).await.unwrap();
+    let emergency = Emergency {
+        position: emergency.position,
+        radius: args.emergency_radius,
+    };
+    println!(
+        "Emergency Position {:?} and Radius {}",
+        emergency.position, emergency.radius
+    );
+
+    start_emergency(&client, emergency).await.unwrap();
 
     // Wait for nodes to be ready
     sleep(Duration::from_secs(5)).await;

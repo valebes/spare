@@ -11,7 +11,7 @@ use iggy::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::orchestrator::Node;
+use crate::orchestrator::{global::emergency::Emergency, Node};
 
 const STREAM_ID: u32 = 1;
 const TOPIC_ID: u32 = 1;
@@ -29,9 +29,22 @@ pub enum Operation {
 }
 
 #[derive(Deserialize, Serialize)]
+pub struct Period {
+    pub start: String,
+    pub end: String,
+}
+
+#[derive(Deserialize, Serialize)]
+pub enum Payload {
+    Nodes(Vec<Node>),
+    Emergency(Emergency),
+    Period(Period),
+}
+
+#[derive(Deserialize, Serialize)]
 pub struct Message {
     pub op: Operation,
-    pub payload: Option<Vec<Node>>,
+    pub payload: Option<Payload>,
 }
 
 /// Receive message from topic
@@ -97,7 +110,7 @@ async fn register_node(client: &IggyClient, node: Node) -> Result<(), IggyError>
         client,
         Message {
             op: Operation::ANNOUNCE,
-            payload: Some(vec![node]),
+            payload: Some(Payload::Nodes(vec![node])),
         },
     )
     .await

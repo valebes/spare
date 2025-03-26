@@ -23,9 +23,9 @@ use ohsw::{
     execution_environment::firecracker::FirecrackerBuilder,
     net::{
         addresses::Addresses,
-        iggy::{IggyConnector, Operation},
+        iggy::{IggyConnector, Operation, Payload},
     },
-    orchestrator::{self, Orchestrator},
+    orchestrator::{self, global::emergency::Emergency, Orchestrator},
 };
 use sqlx::{sqlite, Pool};
 
@@ -70,35 +70,54 @@ async fn emergency_controller(
     loop {
         match iggy_client.receive_message().await {
             Ok(Some(msg)) => match msg.op {
-                Operation::START_EMERGENCY => {
-                    let node = msg.payload.unwrap().remove(0);
-                    orchestrator.set_emergency(true, node.position, 50.0); // RADIUS = 50
-                }
+                Operation::START_EMERGENCY => match msg.payload {
+                    Some(Payload::Emergency(em_pos)) => {
+                        info!(
+                            "Emergency mode activated at position: {:?} with radius: {}",
+                            em_pos.position, em_pos.radius
+                        );
+                        orchestrator.set_emergency(true, em_pos);
+                    }
+                    _ => continue,
+                },
                 Operation::STOP_EMERGENCY => {
-                    orchestrator.set_emergency(false, (0.0, 0.0), 0.0);
+                    orchestrator.set_emergency(
+                        false,
+                        Emergency {
+                            position: (0.0, 0.0),
+                            radius: 0.0,
+                        },
+                    );
+                    info!("Emergency mode deactivated");
                 }
                 Operation::END => break,
-                Operation::WRITE_STATS => {
-                    let start = msg.payload.clone().unwrap().remove(0).address;
-                    let end = msg.payload.unwrap().remove(1).address;
-                    let mut stats = db::stats(&pool, &start, &end).await;
-                    loop {
-                        if stats.is_err() {
-                            stats = db::stats(&pool, &start, &end).await;
-                        } else {
-                            break;
+                Operation::WRITE_STATS => match msg.payload {
+                    Some(Payload::Period(period)) => {
+                        info!(
+                            "Writing stats for period: {} - {}",
+                            period.start, period.end
+                        );
+                        let start = period.start;
+                        let end = period.end;
+                        let mut stats = db::stats(&pool, &start, &end).await;
+                        loop {
+                            if stats.is_err() {
+                                stats = db::stats(&pool, &start, &end).await;
+                            } else {
+                                break;
+                            }
                         }
+                        let stats = stats.unwrap();
+                        writeln!(
+                            file,
+                            "{:<15} {:<10} {:<10} {:<10} {:<10}",
+                            eras, stats.hops_avg, stats.vcpus, stats.memory, stats.requests
+                        )
+                        .unwrap();
+                        eras += 1;
                     }
-
-                    let stats = stats.unwrap();
-                    writeln!(
-                        file,
-                        "{:<15} {:<10} {:<10} {:<10} {:<10}",
-                        eras, stats.hops_avg, stats.vcpus, stats.memory, stats.requests
-                    )
-                    .unwrap();
-                    eras += 1;
-                }
+                    _ => continue,
+                },
                 _ => (),
             },
             Ok(None) => {
@@ -145,8 +164,13 @@ async fn main() -> std::io::Result<()> {
         match iggy_client.receive_message().await {
             Ok(Some(message)) => {
                 if message.op == Operation::ADD_NODES {
-                    nodes = message.payload.unwrap();
-                    break;
+                    match message.payload {
+                        Some(Payload::Nodes(n)) => {
+                            nodes = n;
+                            break;
+                        }
+                        _ => continue,
+                    }
                 }
             }
             Ok(None) => continue,

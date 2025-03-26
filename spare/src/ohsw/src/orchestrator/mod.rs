@@ -1,5 +1,5 @@
 //! Orchestrator module. It is responsible for managing the local resources and monitoring the remote nodes
-mod global;
+pub mod global;
 mod local_resources;
 
 use std::sync::{Mutex, RwLock};
@@ -7,15 +7,59 @@ use std::sync::{Mutex, RwLock};
 use crate::api::{invoke::InvokeFunction, resources::Resources};
 use actix_web::web;
 use awc::Client;
-use global::{geo_distance::GeoDistance, simple_cellular::SimpleCellular, *};
+use global::{emergency::Emergency, geo_distance::GeoDistance, simple_cellular::SimpleCellular, *};
 use local_resources::LocalResources;
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
+
+// TODO: Move this inside the node module
+pub enum InvokeError {
+    Unknown,
+}
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct Node {
     pub address: String, // Ip:Port
     pub position: (f64, f64),
+}
+impl Node {
+    pub fn new(address: String, position: (f64, f64)) -> Self {
+        Self { address, position }
+    }
+
+    pub fn address(&self) -> String {
+        self.address.clone()
+    }
+
+    pub fn position(&self) -> (f64, f64) {
+        self.position
+    }
+
+    /// Invoke a function in a remote node
+    pub async fn invoke(&mut self, mut data: InvokeFunction) -> Result<web::Bytes, InvokeError> {
+        data.hops += 1;
+        let client = Client::default();
+
+        let invoke = client
+            .post(format!("http://{}/invoke", self.address()))
+            .content_type("application/json")
+            .send_json(&data)
+            .await;
+
+        if invoke.is_err() {
+            return Err(InvokeError::Unknown);
+        } else {
+            let mut invoke = invoke.unwrap();
+            if invoke.status().is_success() {
+                match invoke.body().await {
+                    Ok(body) => Ok(body),
+                    Err(_) => Err(InvokeError::Unknown),
+                }
+            } else {
+                Err(InvokeError::Unknown)
+            }
+        }
+    }
 }
 
 /// Error returned by the orchestrator
@@ -83,21 +127,16 @@ impl Orchestrator {
     }
 
     /// Set the emergency mode
-    pub fn set_emergency(&self, emergency: bool, emergency_point: (f64, f64), radius: f64) {
+    pub fn set_emergency(&self, emergency: bool, mut em_pos: Emergency) {
         if emergency {
             info!(
                 "Entering emergency mode. Emergency point: {:?}",
-                emergency_point
+                em_pos.position
             );
             let mut lock = self.global_resources.write().unwrap();
-            lock.set_emergency(emergency_point, radius);
-
-            if self.get_identity().distance(&mut GeoDistance {
-                address: "emergency".to_string(),
-                position: emergency_point,
-                emergency: false,
-            }) <= radius
-            {
+            lock.set_emergency(em_pos);
+            let radius = em_pos.radius;
+            if self.get_identity().distance(&mut em_pos) <= radius {
                 error!("Node is in the emergency zone");
                 *self.in_emergency_area.lock().unwrap() = true;
             }
@@ -121,22 +160,13 @@ impl Orchestrator {
     }
 
     /// Get the nth node available in the system
-    pub fn get_remote_nth_node(&self, index: usize) -> Option<Box<dyn NeighborNode>> {
+    pub fn get_remote_nth_node(&self, index: usize) -> Option<Node> {
         let lock = self.global_resources.read().unwrap();
-        lock.nodes.get(index).map(|node| match lock.strategy() {
-            NeighborNodeStrategy::SimpleCellular => Box::new(SimpleCellular {
-                address: node.address().clone(),
-                position: node.position(),
-                emergency: node.emergency(),
-                latency: 0.0,
-                last_update: std::time::Instant::now(),
-            }) as Box<dyn NeighborNode>,
-            NeighborNodeStrategy::GeoDistance => Box::new(GeoDistance {
-                address: node.address().clone(),
-                position: node.position(),
-                emergency: node.emergency(),
-            }) as Box<dyn NeighborNode>,
-        })
+        let node = lock.get_nth(index);
+        match node {
+            Some(node) => Some(Node::new(node.address(), node.position())),
+            None => None,
+        }
     }
 
     /// Get the resources available in the node
@@ -189,38 +219,5 @@ impl Orchestrator {
     pub fn release_resources(&self, cpus: usize) -> Result<(), OrchestratorError> {
         info!("Releasing {} cpus", cpus);
         self.resources.lock().unwrap().release_cpus(cpus)
-    }
-}
-
-// TODO: Move this inside the node module
-pub enum InvokeError {
-    Unknown,
-}
-/// Invoke a function in a remote node
-pub async fn invoke<T: NeighborNode + ?Sized>(
-    node: &mut T,
-    mut data: InvokeFunction,
-) -> Result<web::Bytes, InvokeError> {
-    data.hops += 1;
-    let client = Client::default();
-
-    let invoke = client
-        .post(format!("http://{}/invoke", node.address()))
-        .content_type("application/json")
-        .send_json(&data)
-        .await;
-
-    if invoke.is_err() {
-        return Err(InvokeError::Unknown);
-    } else {
-        let mut invoke = invoke.unwrap();
-        if invoke.status().is_success() {
-            match invoke.body().await {
-                Ok(body) => Ok(body),
-                Err(_) => Err(InvokeError::Unknown),
-            }
-        } else {
-            Err(InvokeError::Unknown)
-        }
     }
 }

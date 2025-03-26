@@ -98,7 +98,7 @@ async fn offload(
                     // If resources are available, forward request
                     if vcpu.is_some() && memory.is_some() {
                         warn!("Forwarding request to {}", node.address());
-                        let body = crate::orchestrator::invoke(&mut *node, data.clone()).await;
+                        let body = node.invoke(data.clone()).await;
                         match body {
                             Ok(body) => {
                                 error!("Successfully forwarded request to {}", node.address());
@@ -264,7 +264,6 @@ Example API: curl --header "Content-Type: application/json" \
      http://localhost:8085/invoke
 
 */
-
 /// Invoke function endpoint
 /// This endpoint is used to invoke a registered function in the system
 #[post("/invoke")]
