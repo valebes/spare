@@ -236,10 +236,6 @@ async fn wait_for_nodes(client: &IggyClient, number_of_nodes: i32) -> Result<Vec
 
             match msg.payload {
                 Some(Payload::Nodes(tmp)) => {
-                    info!(
-                        "Registered node with ip: {} and position: {:?}",
-                        nodes[0].address, nodes[0].position
-                    );
                     nodes.extend(tmp);
                 }
                 _ => {
