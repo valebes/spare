@@ -1,5 +1,6 @@
 use dyn_clone::DynClone;
 use emergency::Emergency;
+use log::warn;
 
 pub mod emergency;
 pub mod geo_distance;
@@ -213,6 +214,7 @@ impl NeighborNodeList {
     /// # Arguments
     /// * `current` - Current node
     pub fn sort_by_latency(&mut self, current: &mut dyn NeighborNodeWithLatency) {
+        warn!("Sorting by Latency");
         let mut latencies: Vec<(f64, usize)> = self
             .nodes
             .iter_mut()
@@ -229,6 +231,24 @@ impl NeighborNodeList {
             .into_iter()
             .map(|(_, i)| dyn_clone::clone_box(&*self.nodes[i])) // Use `dyn_clone` to clone the trait object
             .collect();
+
+        for node in self.nodes.iter_mut() {
+            // print latency
+            match node.as_mut() {
+                NeighborNodeType::Latency(node) => println!(
+                    "Latency of node{}: {}",
+                    node.address(),
+                    node.latency(&mut simple_cellular::SimpleCellular {
+                        position: (45.4685, 9.1824),
+                        address: "current".to_string(),
+                        emergency: false,
+                        latency: 0.0,
+                        last_update: std::time::Instant::now(),
+                    })
+                ),
+                _ => (),
+            }
+        }
     }
 
     /// Sort the nodes by distance from the current node

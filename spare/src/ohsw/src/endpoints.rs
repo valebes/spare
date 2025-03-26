@@ -66,6 +66,7 @@ async fn offload(
     orchestrator.sort_nodes(); // TODO: Remove from here and implement a timed job
 
     // Iterate over the nodes
+    warn!("Function must be offloaded");
     for i in 0..orchestrator.number_of_nodes() {
         match orchestrator.get_remote_nth_node(i) {
             Some(mut node) => {
@@ -76,7 +77,8 @@ async fn offload(
                 {
                     continue;
                 }
-
+                
+                warn!("Checking node: {}", node.address());
                 // Check if resource are available on the remote node
                 let client = Client::default();
                 let response = client
