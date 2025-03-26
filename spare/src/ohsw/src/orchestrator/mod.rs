@@ -150,13 +150,15 @@ impl Orchestrator {
     /// Get the number of available nodes
     pub fn number_of_nodes(&self) -> usize {
         // Count the number of nodes that are not in emergency mode
-        self.global_resources
+        let res = self.global_resources
             .read()
             .unwrap()
             .nodes
             .iter()
             .filter(|node| !node.emergency())
-            .count()
+            .count();
+        warn!("Number of nodes: {}", res);
+        res
     }
 
     /// Get the nth node available in the system

@@ -68,6 +68,7 @@ async fn offload(
     // Iterate over the nodes
     warn!("Function must be offloaded");
     for i in 0..orchestrator.number_of_nodes() {
+        warn!("Checking node: {}", i);
         match orchestrator.get_remote_nth_node(i) {
             Some(mut node) => {
                 // Do not forward request to origin
@@ -78,7 +79,6 @@ async fn offload(
                     continue;
                 }
                 
-                warn!("Checking node: {}", node.address());
                 // Check if resource are available on the remote node
                 let client = Client::default();
                 let response = client
