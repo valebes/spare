@@ -177,10 +177,10 @@ impl NeighborNodeList {
         let mut count = 0;
         for node in self.nodes.iter() {
             if !node.emergency() {
-                count += 1;
                 if count == nth {
                     return Some(&**node);
                 }
+                count += 1;
             }
         }
         None
