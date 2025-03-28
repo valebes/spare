@@ -280,7 +280,7 @@ async fn test(
     nodes: Vec<Node>,
     function_path: &String,
 ) -> (u128, usize, usize, Vec<u128>) {
-    let request_per_epoch = 10 * nodes.len();
+    let request_per_epoch = 8 * nodes.len();
     let mut latency_per_epoch = Vec::new();
     let latency = Arc::new(Mutex::new(Vec::new()));
     let completed = Arc::new(AtomicUsize::new(0));
@@ -466,7 +466,7 @@ async fn main() {
 
     let mut emergency = emergency.remove(0);
 
-    // if more than 1/3 of nodes are "x" meters away from the emergency point, recompute emergency node
+    // if more than 1/3 of nodes are within the emergency area, recompute emergency point
     while nodes
         .iter()
         .filter(|node| node.distance(&emergency) <= args.emergency_radius)
