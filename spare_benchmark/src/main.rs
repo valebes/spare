@@ -302,7 +302,7 @@ async fn test(
             let failed_tmp = Arc::clone(&failed);
             let function_path_tmp = function_path.clone();
 
-            sleep(Duration::from_millis(50)).await; // Inter-arrival time
+            sleep(Duration::from_millis(55)).await; // Inter-arrival time
             let handle = tokio::spawn(async move {
                 let web_client = reqwest::Client::new();
 
@@ -343,7 +343,7 @@ async fn test(
                                 break;
                             } else {
                                 error!("Error: {}", res.text().await.unwrap());
-                                sleep(Duration::from_millis(50)).await; // Retry after 50ms TODO: Revise this
+                                sleep(Duration::from_millis(100)).await; // Retry after 100ms TODO: Revise this
                                 total_time += end.duration_since(start).as_millis();
                                 failed_tmp.fetch_add(1, Ordering::SeqCst);
                                 continue;
