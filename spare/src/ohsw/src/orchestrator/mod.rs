@@ -110,6 +110,11 @@ impl Orchestrator {
         }
     }
 
+    /// Get Strategy
+    pub fn get_strategy(&self) -> NeighborNodeStrategy {
+        self.global_resources.read().unwrap().strategy()
+    }
+
     /// Sort the nodes based on the strategy
     pub fn sort_nodes(&self) {
         self.global_resources

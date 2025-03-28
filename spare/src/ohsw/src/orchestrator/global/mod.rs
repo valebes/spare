@@ -9,7 +9,7 @@ pub mod simple_cellular;
 /// Enum that represents the different strategies
 /// available for the Neighbor Node Selection
 /// strategy.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum NeighborNodeStrategy {
     /// Strategy that uses the Haversine formula to calculate
     /// the distance between two points.ß

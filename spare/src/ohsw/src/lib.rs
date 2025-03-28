@@ -1,4 +1,3 @@
-#![feature(specialization)]
 #![feature(future_join)]
 
 pub mod api;

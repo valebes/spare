@@ -62,8 +62,10 @@ async fn offload(
     let cpus = data.vcpus;
     let memory = data.memory;
 
-    // Sort the list
-    orchestrator.sort_nodes(); // TODO: Remove from here and implement a timed job
+    // Sort the list TODO: ONLY FOR TESTING, REMOVE LATER
+    if orchestrator.get_strategy() == orchestrator::global::NeighborNodeStrategy::SimpleCellular {
+        orchestrator.sort_nodes(); // TODO: Remove from here and implement a timed job
+    }
 
     // Iterate over the nodes
     warn!("Function must be offloaded");
