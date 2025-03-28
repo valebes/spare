@@ -128,12 +128,12 @@ impl Orchestrator {
 
     /// Set the emergency mode
     pub fn set_emergency(&self, emergency: bool, mut em_pos: Emergency) {
+        let mut lock = self.global_resources.write().unwrap();
         if emergency {
             info!(
                 "Entering emergency mode. Emergency point: {:?}",
                 em_pos.position
             );
-            let mut lock = self.global_resources.write().unwrap();
             lock.set_emergency(em_pos);
             let radius = em_pos.radius;
             if self.get_identity().distance(&mut em_pos) <= radius {
@@ -142,7 +142,7 @@ impl Orchestrator {
             }
         } else {
             info!("Leaving emergency mode");
-            self.global_resources.write().unwrap().clear_emergency();
+            lock.clear_emergency();
             *self.in_emergency_area.lock().unwrap() = false;
         }
     }
