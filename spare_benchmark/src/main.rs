@@ -280,7 +280,7 @@ async fn test(
     nodes: Vec<Node>,
     function_path: &String,
 ) -> (u128, usize, usize, Vec<u128>) {
-    let request_per_epoch = 8 * nodes.len();
+    let request_per_epoch = 7 * nodes.len();
     let mut latency_per_epoch = Vec::new();
     let latency = Arc::new(Mutex::new(Vec::new()));
     let completed = Arc::new(AtomicUsize::new(0));
@@ -302,7 +302,7 @@ async fn test(
             let failed_tmp = Arc::clone(&failed);
             let function_path_tmp = function_path.clone();
 
-            sleep(Duration::from_millis(35)).await; // Inter-arrival time
+            sleep(Duration::from_millis(45)).await; // Inter-arrival time
             let handle = tokio::spawn(async move {
                 let web_client = reqwest::Client::new();
 

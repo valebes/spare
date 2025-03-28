@@ -141,15 +141,5 @@ impl SimpleCellular {
             let queuing_delay = exp_distribution.sample(&mut thread_rng());
             self.latency += queuing_delay + transmission_delay_backhaul;
         }
-
-        info!(
-            "Estimated 5G latency ({}): {:.6} seconds",
-            if same_bs {
-                "Same BS"
-            } else {
-                "Two BSs + Backhaul"
-            },
-            self.latency
-        );
     }
 }

@@ -156,7 +156,7 @@ impl Orchestrator {
             .iter()
             .filter(|node| !node.emergency())
             .count();
-        warn!("Total Number of Nodes:{}, Nodes Available: {}", lock.nodes.len(), res);
+        info!("Total Number of Nodes: {}, Nodes Available: {}", lock.nodes.len(), res);
         res
     }
 
