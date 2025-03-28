@@ -17,7 +17,7 @@ use crate::{
     api::{self, invoke::InvokeFunction},
     db::{self, models::Instance},
     execution_environment::firecracker::FirecrackerBuilder,
-    orchestrator,
+    orchestrator::{self, global::NeighborNode},
 };
 
 /// Error types for the instance
@@ -62,11 +62,6 @@ async fn offload(
     let cpus = data.vcpus;
     let memory = data.memory;
 
-    // Sort the list TODO: ONLY FOR TESTING, REMOVE LATER
-    if orchestrator.get_strategy() == orchestrator::global::NeighborNodeStrategy::SimpleCellular {
-        orchestrator.sort_nodes(); // TODO: Remove from here and implement a timed job
-    }
-
     // Iterate over the nodes
     warn!("Function must be offloaded");
     for i in 0..orchestrator.number_of_nodes() {
@@ -80,7 +75,7 @@ async fn offload(
                 {
                     continue;
                 }
-                
+
                 // Check if resource are available on the remote node
                 let client = Client::default();
                 let response = client

@@ -10,6 +10,7 @@ use awc::Client;
 use global::{emergency::Emergency, geo_distance::GeoDistance, simple_cellular::SimpleCellular, *};
 use local_resources::LocalResources;
 use log::{error, info, warn};
+use longitude::Location;
 use serde::{Deserialize, Serialize};
 
 // TODO: Move this inside the node module
@@ -25,14 +26,6 @@ pub struct Node {
 impl Node {
     pub fn new(address: String, position: (f64, f64)) -> Self {
         Self { address, position }
-    }
-
-    pub fn address(&self) -> String {
-        self.address.clone()
-    }
-
-    pub fn position(&self) -> (f64, f64) {
-        self.position
     }
 
     /// Invoke a function in a remote node
@@ -61,6 +54,29 @@ impl Node {
         }
     }
 }
+impl NeighborNode for Node {
+    fn address(&self) -> String {
+        self.address.clone()
+    }
+
+    fn position(&self) -> (f64, f64) {
+        self.position
+    }
+
+    fn emergency(&self) -> bool {
+        false
+    }
+
+    fn set_emergency(&mut self, _emergency: bool) {}
+}
+impl Distance for Node {
+    fn distance(&mut self, node: &mut dyn NeighborNode) -> f64 {
+        let location_a = Location::from(self.position.0, self.position.1);
+        let location_b = Location::from(node.position().0, node.position().1);
+
+        location_a.distance(&location_b).meters()
+    }
+}
 
 /// Error returned by the orchestrator
 pub enum OrchestratorError {
@@ -72,7 +88,7 @@ pub enum OrchestratorError {
 pub struct Orchestrator {
     in_emergency_area: Mutex<bool>,
     resources: Mutex<local_resources::LocalResources>,
-    identity: RwLock<GeoDistance>,
+    identity: Node,
     global_resources: RwLock<NeighborNodeList>,
 }
 
@@ -105,7 +121,7 @@ impl Orchestrator {
         Self {
             in_emergency_area: Mutex::new(false),
             resources: Mutex::new(local_resources::LocalResources::new()),
-            identity: RwLock::new(GeoDistance::new(identity.position, identity.address)),
+            identity: identity,
             global_resources: RwLock::new(neighbor_nodes),
         }
     }
@@ -120,13 +136,15 @@ impl Orchestrator {
         self.global_resources
             .write()
             .unwrap()
-            .sort(&mut self.get_identity());
+            .sort(&mut GeoDistance::new(
+                self.identity.position,
+                self.identity.address.clone(),
+            ));
     }
 
     /// Get the identity of the node itself
-    pub fn get_identity(&self) -> GeoDistance {
-        let lock = self.identity.write().unwrap();
-        lock.clone()
+    pub fn get_identity(&self) -> Node {
+        self.identity.clone()
     }
 
     /// Get if the node is in the emergency area
@@ -159,18 +177,26 @@ impl Orchestrator {
     pub fn number_of_nodes(&self) -> usize {
         let lock = self.global_resources.read().unwrap();
         // Count the number of nodes that are not in emergency mode
-        let res = lock
-            .nodes
-            .iter()
-            .filter(|node| !node.emergency())
-            .count();
-        info!("Total Number of Nodes: {}, Nodes Available: {}", lock.nodes.len(), res);
+        let res = lock.nodes.iter().filter(|node| !node.emergency()).count();
+        info!(
+            "Total Number of Nodes: {}, Nodes Available: {}",
+            lock.nodes.len(),
+            res
+        );
         res
     }
 
     /// Get the nth node available in the system
     pub fn get_remote_nth_node(&self, index: usize) -> Option<Node> {
-        let lock = self.global_resources.read().unwrap();
+        let mut lock = self.global_resources.write().unwrap();
+        // Check the strategy
+        match lock.strategy() {
+            NeighborNodeStrategy::SimpleCellular => {
+                lock.sort(&mut self.identity.clone());
+            }
+            _ => {} // Already sorted
+        }
+
         let node = lock.get_nth(index);
         match node {
             Some(node) => Some(Node::new(node.address(), node.position())),

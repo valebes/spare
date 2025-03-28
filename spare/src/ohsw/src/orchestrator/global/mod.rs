@@ -2,6 +2,8 @@ use dyn_clone::DynClone;
 use emergency::Emergency;
 use log::warn;
 
+use super::Node;
+
 pub mod emergency;
 pub mod geo_distance;
 pub mod simple_cellular;
@@ -172,8 +174,7 @@ impl NeighborNodeList {
     /// # Returns
     /// * The closest node if it exists
     /// * None if the list is empty
-    pub fn get_nth(&self, nth: usize) -> Option<&dyn NeighborNode> {
-        // The list is already sorted
+    pub fn get_nth(&mut self, nth: usize) -> Option<&dyn NeighborNode> {
         let mut count = 0;
         for node in self.nodes.iter() {
             if !node.emergency() {
