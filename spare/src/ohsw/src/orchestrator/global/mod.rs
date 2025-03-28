@@ -231,24 +231,6 @@ impl NeighborNodeList {
             .into_iter()
             .map(|(_, i)| dyn_clone::clone_box(&*self.nodes[i])) // Use `dyn_clone` to clone the trait object
             .collect();
-
-        for node in self.nodes.iter_mut() {
-            // print latency
-            match node.as_mut() {
-                NeighborNodeType::Latency(node) => println!(
-                    "Latency of node{}: {}",
-                    node.address(),
-                    node.latency(&mut simple_cellular::SimpleCellular {
-                        position: (45.4685, 9.1824),
-                        address: "current".to_string(),
-                        emergency: false,
-                        latency: 0.0,
-                        last_update: std::time::Instant::now(),
-                    })
-                ),
-                _ => (),
-            }
-        }
     }
 
     /// Sort the nodes by distance from the current node
