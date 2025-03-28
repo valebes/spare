@@ -62,9 +62,6 @@ async fn offload(
     let cpus = data.vcpus;
     let memory = data.memory;
 
-    // Sort the list
-    orchestrator.sort_nodes(); // TODO: Remove from here and implement a timed job
-
     // Iterate over the nodes
     warn!("Function must be offloaded");
     for i in 0..orchestrator.number_of_nodes() {

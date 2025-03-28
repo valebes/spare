@@ -99,6 +99,9 @@ impl Orchestrator {
             neighbor_nodes.add_node(node.address, node.position);
         }
 
+        // Sort the nodes based on the strategy
+        neighbor_nodes.sort(&mut GeoDistance::new(identity.position, "".to_string()));
+
         Self {
             in_emergency_area: Mutex::new(false),
             resources: Mutex::new(local_resources::LocalResources::new()),
