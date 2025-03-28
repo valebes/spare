@@ -302,7 +302,7 @@ async fn test(
             let failed_tmp = Arc::clone(&failed);
             let function_path_tmp = function_path.clone();
 
-            sleep(Duration::from_millis(35)).await; // Inter-arrival time
+            sleep(Duration::from_millis(55)).await; // Inter-arrival time
             let handle = tokio::spawn(async move {
                 let web_client = reqwest::Client::new();
 
