@@ -93,7 +93,7 @@ impl SimpleCellular {
         const SPEED_OF_LIGHT_FIBER: f64 = 3.0e8 / 1.5; // Speed of light in fiber (m/s)
 
         const PACKET_SIZE: f64 = 1500.0 * 8.0; // Packet size in bits (1500 bytes)
-        const ACCESS_BANDWIDTH: f64 = 100.0 * 1e6; // Access network bandwidth (100 Mbps)
+        const ACCESS_BANDWIDTH: f64 = 50.0 * 1e6; // Access network bandwidth (50 Mbps)
         const BACKHAUL_BANDWIDTH: f64 = 10.0 * 1e9; // Backhaul network bandwidth (10 Gbps)
         const MAX_WIRELESS_DISTANCE: f64 = 500.0; // Maximum wireless antenna range (meters)
         const MAX_BACKHAUL_DISTANCE: f64 = 10000.0; // Maximum fiber backhaul distance (10 km)

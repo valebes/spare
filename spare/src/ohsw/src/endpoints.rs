@@ -139,121 +139,130 @@ async fn start_instance(
     let builder = firecracker_builder.read().unwrap(); // TODO: Remove lock
 
     // Create new instance
-    let mut fc_instance = builder
+    let fc_instance = builder
         .new_instance(data.image.clone(), data.vcpus, data.memory)
         .await;
 
-    // Insert instance in the database
-    let mut instance = Instance::new(
-        data.function.clone(),
-        builder.kernel.clone(),
-        data.image.clone(),
-        data.vcpus,
-        data.memory,
-        data.hops,
-        fc_instance.get_address().to_string(),
-        8084,
-    );
-    instance.insert(&db_pool).await.unwrap();
+    match fc_instance {
+        Ok(mut fc_instance) => {
+            info!("Created new instance: {}", fc_instance.get_address());
+            // Insert instance in the database
+            let mut instance = Instance::new(
+                data.function.clone(),
+                builder.kernel.clone(),
+                data.image.clone(),
+                data.vcpus,
+                data.memory,
+                data.hops,
+                fc_instance.get_address().to_string(),
+                8084,
+            );
+            instance.insert(&db_pool).await.unwrap();
 
-    info!("Created new function instance: {}", instance.id);
+            info!("Created new function instance: {}", instance.id);
 
-    // Make sure the vsock socket is ready
-    let mut path = fc_instance.get_vsock_path();
-    path.push_str("_1234");
-    let socket = UnixListener::bind(path).unwrap();
+            // Make sure the vsock socket is ready
+            let mut path = fc_instance.get_vsock_path();
+            path.push_str("_1234");
+            let socket = UnixListener::bind(path).unwrap();
 
-    // Start instance
-    match fc_instance.start().await {
-        Ok(_) => {}
-        Err(_) => {
-            // If an error occurs, delete the instance and set 'failed' status
-            instance.set_status("failed".to_string());
-            let _ = instance.update(&db_pool).await;
+            // Start instance
+            match fc_instance.start().await {
+                Ok(_) => {}
+                Err(_) => {
+                    // If an error occurs, delete the instance and set 'failed' status
+                    instance.set_status("failed".to_string());
+                    let _ = instance.update(&db_pool).await;
+                    let _ = fc_instance.delete().await;
+                    builder
+                        .network
+                        .lock()
+                        .unwrap()
+                        .release(fc_instance.get_address());
+                    return Err(InstanceError::Unknown);
+                }
+            }
+
+            info!("Starting instance: {} ip: {}", instance.id, instance.ip);
+
+            let (stream, _) = socket.accept().await.unwrap();
+            let mut buf = [0; 1024];
+            stream.readable().await.unwrap();
+            stream.try_read(&mut buf).unwrap();
+            let message = String::from_utf8_lossy(&buf);
+
+            info!("Received message: {}", message);
+
+            // Check if the instance is ready through the vsock socket
+            match message.contains("ready") {
+                true => {}
+                false => {
+                    // If an error occurs, delete the instance and set 'failed' status
+                    instance.set_status("failed".to_string());
+                    let _ = instance.update(&db_pool).await;
+                    let _ = fc_instance.delete().await;
+                    builder
+                        .network
+                        .lock()
+                        .unwrap()
+                        .release(fc_instance.get_address());
+                    return Err(InstanceError::Unknown);
+                }
+            }
+
+            // Forward request to instance
+            let client = Client::default();
+
+            let max_retries = 100;
+            let mut retries = 0;
+            let mut res;
+            loop {
+                if retries > max_retries {
+                    instance.set_status("failed".to_string());
+                    let _ = instance.update(&db_pool).await;
+                    let _ = fc_instance.delete().await;
+                    builder
+                        .network
+                        .lock()
+                        .unwrap()
+                        .release(fc_instance.get_address());
+                    return Err(InstanceError::Timeout);
+                }
+                res = client
+                    .get(format!("http://{}:{}", instance.ip, instance.port))
+                    .send()
+                    .await;
+
+                if res.is_ok() {
+                    break;
+                } else {
+                    // Retry after 10ms
+                    sleep(Duration::from_millis(10)).await;
+                    retries += 1;
+                }
+            }
+
+            let body = res.unwrap().body().await;
+
+            // Cleanup instance
+            let _ = fc_instance.stop().await;
             let _ = fc_instance.delete().await;
+            let _ = instance.set_status("terminated".to_string());
+            let _ = instance.update(&db_pool).await;
+
             builder
                 .network
                 .lock()
                 .unwrap()
                 .release(fc_instance.get_address());
+
+            Ok(body)
+        }
+        Err(e) => {
+            error!("Failed to create instance: {:?}", e);
             return Err(InstanceError::Unknown);
         }
     }
-
-    info!("Starting instance: {} ip: {}", instance.id, instance.ip);
-
-    let (stream, _) = socket.accept().await.unwrap();
-    let mut buf = [0; 1024];
-    stream.readable().await.unwrap();
-    stream.try_read(&mut buf).unwrap();
-    let message = String::from_utf8_lossy(&buf);
-
-    info!("Received message: {}", message);
-
-    // Check if the instance is ready through the vsock socket
-    match message.contains("ready") {
-        true => {}
-        false => {
-            // If an error occurs, delete the instance and set 'failed' status
-            instance.set_status("failed".to_string());
-            let _ = instance.update(&db_pool).await;
-            let _ = fc_instance.delete().await;
-            builder
-                .network
-                .lock()
-                .unwrap()
-                .release(fc_instance.get_address());
-            return Err(InstanceError::Unknown);
-        }
-    }
-
-    // Forward request to instance
-    let client = Client::default();
-
-    let max_retries = 100;
-    let mut retries = 0;
-    let mut res;
-    loop {
-        if retries > max_retries {
-            instance.set_status("failed".to_string());
-            let _ = instance.update(&db_pool).await;
-            let _ = fc_instance.delete().await;
-            builder
-                .network
-                .lock()
-                .unwrap()
-                .release(fc_instance.get_address());
-            return Err(InstanceError::Timeout);
-        }
-        res = client
-            .get(format!("http://{}:{}", instance.ip, instance.port))
-            .send()
-            .await;
-
-        if res.is_ok() {
-            break;
-        } else {
-            // Retry after 10ms
-            sleep(Duration::from_millis(10)).await;
-            retries += 1;
-        }
-    }
-
-    let body = res.unwrap().body().await;
-
-    // Cleanup instance
-    let _ = fc_instance.stop().await;
-    let _ = fc_instance.delete().await;
-    let _ = instance.set_status("terminated".to_string());
-    let _ = instance.update(&db_pool).await;
-
-    builder
-        .network
-        .lock()
-        .unwrap()
-        .release(fc_instance.get_address());
-
-    Ok(body)
 }
 
 /*
@@ -391,10 +400,13 @@ mod test {
         let mut i = 0;
 
         while i < 1000 {
-            let mut fc_instance = builder
+            let fc_instance = builder
                 .new_instance(function_image_path.clone(), 2, 256) // Image, vcpus, memory
                 .await;
 
+            match fc_instance {
+                Ok(mut fc_instance) => {
+                    
             // VSOCK
             let mut path = fc_instance.get_vsock_path();
             path.push_str("_1234");
@@ -445,6 +457,14 @@ mod test {
                 .unwrap()
                 .release(fc_instance.get_address());
             let _ = fc_instance.delete().await;
+                }
+                Err(e) => {
+                    error!("Failed to create instance: {:?}", e);
+                    i -= 1;
+                    continue;
+                }
+                
+            }
         }
 
         // Save times in csv

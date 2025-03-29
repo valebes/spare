@@ -53,6 +53,8 @@ pub enum FirepilotError {
     Configure(String),
     /// The process didn't start properly or an error occurred while trying to run it
     Execute(String),
+    /// Unknown error
+    Unknown(String),
 }
 
 /// An instance of microVM which can be created and deployed easily

@@ -8,9 +8,10 @@ use crate::net::{
     },
 };
 use builder::{executor::FirecrackerExecutorBuilder, Builder, Configuration};
-use firepilot::*;
+use firepilot::{machine::FirepilotError, *};
 use firepilot_models::models::{BootSource, Drive, MachineConfiguration, NetworkInterface};
-use machine::{FirepilotError, Machine};
+use machine::Machine;
+
 
 /// Struct that acts as a builder for Firecracker instances.
 pub struct FirecrackerBuilder {
@@ -37,21 +38,46 @@ impl FirecrackerBuilder {
         image: String,
         vcpus: i32,
         memory: i32,
-    ) -> FirecrackerInstance {
-        let mut network = self.network.lock().unwrap();
+    ) -> Result<FirecrackerInstance, FirepilotError> {
+        let mut network = self.network.lock();
+        match network {
+            Ok(mut network) => {
+                if network.get().is_none() {
+                    return Err(FirepilotError::Unknown(
+                        "No more addresses available".to_string(),
+                    ));
+                }
 
-        FirecrackerInstance::new(
-            self.executable.clone(),
-            self.kernel.clone(),
-            image,
-            vcpus,
-            memory,
-            self.bridge.clone(),
-            network.get().unwrap(),
-            network.get_gateway(),
-            network.get_netmask(),
-        )
-        .await
+                let address = network.get();
+                match address {
+                    Some(ip) => {
+                        log::info!("Assigned IP address: {}", ip);
+                        Ok(FirecrackerInstance::new(
+                            self.executable.clone(),
+                            self.kernel.clone(),
+                            image,
+                            vcpus,
+                            memory,
+                            self.bridge.clone(),
+                            ip,
+                            network.get_gateway(),
+                            network.get_netmask(),
+                        )
+                        .await)
+                    }
+                    None => {
+                        return Err(FirepilotError::Unknown(
+                            "No more addresses available".to_string(),
+                        ))
+                    }
+                }
+            }
+            Err(_) => {
+                return Err(FirepilotError::Unknown(
+                    "Failed to lock network".to_string(),
+                ))
+            }
+        }
     }
 }
 
