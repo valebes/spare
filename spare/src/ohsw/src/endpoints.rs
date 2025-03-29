@@ -274,7 +274,9 @@ async fn start_instance(
                 match stream.0.try_read(&mut buf.as_mut()) {
                     Ok(0) => break,
                     Ok(n) => {
-                        println!("read {} bytes", n);
+                        if n == 5 {
+                            break;
+                        }
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                         buf.fill(0);
