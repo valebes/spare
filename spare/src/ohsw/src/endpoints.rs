@@ -22,6 +22,11 @@ use crate::{
 /// Error types for the instance
 #[derive(Debug)]
 pub enum InstanceError {
+    ApplicationNotInitialized,
+    InstanceCreation,
+    VSock,
+    VSockCreation,
+    Database,
     Timeout,
     Unknown,
 }
@@ -167,7 +172,7 @@ async fn start_instance(
                 Ok(_) => {}
                 Err(e) => {
                     error!("Failed to insert instance in the database: {:?}", e);
-                    return Err(InstanceError::Unknown);
+                    return Err(InstanceError::Database);
                 }
             }
 
@@ -188,7 +193,7 @@ async fn start_instance(
                     .lock()
                     .unwrap()
                     .release(fc_instance.get_address());
-                return Err(InstanceError::Unknown);
+                return Err(InstanceError::VSockCreation);
             }
             let socket = socket.unwrap();
             info!("Socket created: {}", socket.as_raw_fd());
@@ -206,7 +211,7 @@ async fn start_instance(
                         .lock()
                         .unwrap()
                         .release(fc_instance.get_address());
-                    return Err(InstanceError::Unknown);
+                    return Err(InstanceError::InstanceCreation);
                 }
             }
 
@@ -223,7 +228,7 @@ async fn start_instance(
                     .lock()
                     .unwrap()
                     .release(fc_instance.get_address());
-                return Err(InstanceError::Unknown);
+                return Err(InstanceError::VSock);
             }
             let stream = stream.unwrap();
 
@@ -241,7 +246,7 @@ async fn start_instance(
                         .lock()
                         .unwrap()
                         .release(fc_instance.get_address());
-                    return Err(InstanceError::Unknown);
+                    return Err(InstanceError::VSock);
                 }
             }
             match stream.0.try_read(buf.as_mut()) {
@@ -256,7 +261,7 @@ async fn start_instance(
                         .lock()
                         .unwrap()
                         .release(fc_instance.get_address());
-                    return Err(InstanceError::Unknown);
+                    return Err(InstanceError::VSock);
                 }
             }
             let message: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buf);
@@ -276,7 +281,7 @@ async fn start_instance(
                         .lock()
                         .unwrap()
                         .release(fc_instance.get_address());
-                    return Err(InstanceError::Unknown);
+                    return Err(InstanceError::VSock);
                 }
             }
 
@@ -296,7 +301,7 @@ async fn start_instance(
                         .lock()
                         .unwrap()
                         .release(fc_instance.get_address());
-                    return Err(InstanceError::Timeout);
+                    return Err(InstanceError::ApplicationNotInitialized);
                 }
                 res = client
                     .get(format!("http://{}:{}", instance.ip, instance.port))
@@ -330,7 +335,7 @@ async fn start_instance(
         }
         Err(e) => {
             error!("Failed to create instance: {:?}", e);
-            return Err(InstanceError::Unknown);
+            return Err(InstanceError::InstanceCreation);
         }
     }
 }
