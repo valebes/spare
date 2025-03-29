@@ -134,7 +134,6 @@ async fn offload(
             }
             None => break,
         }
-        return HttpResponse::InternalServerError().body("Failed to offload request\n");
     }
     return HttpResponse::InternalServerError().body("Insufficient resources\n");
 }
