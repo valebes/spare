@@ -56,6 +56,17 @@ pub enum FirepilotError {
     /// Unknown error
     Unknown(String),
 }
+impl std::fmt::Display for FirepilotError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FirepilotError::Setup(msg) => write!(f, "Setup error: {}", msg),
+            FirepilotError::Configure(msg) => write!(f, "Configuration error: {}", msg),
+            FirepilotError::Execute(msg) => write!(f, "Execution error: {}", msg),
+            FirepilotError::Unknown(msg) => write!(f, "Unknown error: {}", msg),
+        }
+    }
+}
+
 
 /// An instance of microVM which can be created and deployed easily
 #[derive(Debug)]

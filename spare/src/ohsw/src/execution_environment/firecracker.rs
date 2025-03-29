@@ -52,7 +52,7 @@ impl FirecrackerBuilder {
                 match address {
                     Some(ip) => {
                         log::info!("Assigned IP address: {}", ip);
-                        Ok(FirecrackerInstance::new(
+                        let create_instance =FirecrackerInstance::new(
                             self.executable.clone(),
                             self.kernel.clone(),
                             image,
@@ -63,7 +63,19 @@ impl FirecrackerBuilder {
                             network.get_gateway(),
                             network.get_netmask(),
                         )
-                        .await)
+                        .await;
+                        match create_instance {
+                            Ok(instance) => {
+                                log::info!("Created instance with IP address: {}", ip);
+                                return Ok(instance);
+                            }
+                            Err(e) => {
+                                return Err(FirepilotError::Unknown(format!(
+                                    "Failed to create instance: {}",
+                                    e
+                                )))
+                            }
+                        }
                     }
                     None => {
                         return Err(FirepilotError::Unknown(
@@ -81,6 +93,18 @@ impl FirecrackerBuilder {
     }
 }
 
+
+pub enum FirecrackerInstanceCreationError {
+    /// Error creating the instance.
+    CreationError(String),
+}
+impl std::fmt::Display for FirecrackerInstanceCreationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FirecrackerInstanceCreationError::CreationError(e) => write!(f, "Creation error: {}", e),
+        }
+    }
+}
 /// Struct that represents a Firecracker instance.
 pub struct FirecrackerInstance {
     machine: Machine,
@@ -120,7 +144,8 @@ impl FirecrackerInstance {
         address: Ipv4Addr,
         gateway: Ipv4Addr,
         netmask: Ipv4Addr,
-    ) -> Self {
+    ) -> Result<Self, FirecrackerInstanceCreationError> 
+    { 
         let uuid = uuid::Uuid::new_v4();
         let name = format!("firecracker-{}", uuid);
 
@@ -146,14 +171,20 @@ impl FirecrackerInstance {
         let tmp = Tap::create(&tap_name);
         match tmp {
             Ok(_) => log::info!("Created {}", tap_name),
-            Err(e) => panic!("Failed to create {}: {}", tap_name, e),
+            Err(e) => return Err(FirecrackerInstanceCreationError::CreationError(format!(
+                "Failed to create {}: {}",
+                tap_name, e
+            ))),
         }
         let tap = tmp.unwrap();
 
         let attach_tap = bridge::add_interface_to_bridge(interface_id(&tap_name).unwrap(), &bridge);
         match attach_tap {
             Ok(_) => log::info!("Added {} to {}", tap_name, bridge),
-            Err(e) => panic!("Failed to add {} to {}: {}", tap_name, bridge, e),
+            Err(e) => return Err(FirecrackerInstanceCreationError::CreationError(format!(
+                "Failed to add {} to {}: {}",
+                tap_name, bridge, e
+            ))),
         }
 
         let net = NetworkInterface {
@@ -167,8 +198,17 @@ impl FirecrackerInstance {
         let executor = FirecrackerExecutorBuilder::new()
             .with_chroot("/tmp".to_owned())
             .with_exec_binary(executable_path.into())
-            .try_build()
-            .unwrap();
+            .try_build();
+
+        let executor = match executor {
+            Ok(executor) => executor,
+            Err(e) => {
+                return Err(FirecrackerInstanceCreationError::CreationError(format!(
+                    "Failed to create executor: {}",
+                    e
+                )))
+            }
+        };
 
         let machine_configuration = MachineConfiguration {
             cpu_template: None,
@@ -189,14 +229,19 @@ impl FirecrackerInstance {
         let mut machine = Machine::new();
         match machine.create(conf).await {
             Ok(_) => log::info!("Created {}", name),
-            Err(e) => panic!("Failed to create {}: {:?}", name, e),
+            Err(e) => {
+                return Err(FirecrackerInstanceCreationError::CreationError(format!(
+                    "Failed to create {}: {}",
+                    name, e
+                )))
+            }
         }
 
-        Self {
+        Ok(Self {
             machine,
             address,
             tap,
-        }
+        })
     }
 
     /// Get the IP address of the instance.
@@ -263,7 +308,7 @@ mod tests {
         let address = Ipv4Addr::new(192, 168, 30, 2);
         let gateway = Ipv4Addr::new(192, 168, 30, 1);
         let netmask = Ipv4Addr::new(255, 255, 255, 0);
-        let mut instance = FirecrackerInstance::new(
+        let instance = FirecrackerInstance::new(
             executable_path,
             kernel_path,
             image_path,
@@ -276,8 +321,20 @@ mod tests {
         )
         .await;
 
-        instance.machine.start().await.unwrap();
-        sleep(Duration::from_secs(25)).await;
-        instance.machine.kill().await.unwrap();
+        assert!(instance.is_ok());
+        match instance {
+            Ok(mut instance) => {
+                assert_eq!(instance.get_address(), address);
+                assert_eq!(instance.get_vsock_path(), "/tmp/vsock.sock");
+                assert_eq!(instance.get_status().await, "false");
+                instance.start().await.unwrap();
+                sleep(Duration::from_secs(5)).await;
+                assert_eq!(instance.get_status().await, "true");
+                instance.stop().await.unwrap();
+                sleep(Duration::from_secs(5)).await;
+                assert_eq!(instance.get_status().await, "false");
+            }
+            Err(e) => panic!("Failed to create instance: {}", e),
+        }
     }
 }

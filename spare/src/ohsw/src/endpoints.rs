@@ -24,6 +24,7 @@ use crate::{
 pub enum InstanceError {
     ApplicationNotInitialized,
     InstanceCreation,
+    InstanceStart,
     VSock,
     VSockCreation,
     Database,
@@ -211,7 +212,7 @@ async fn start_instance(
                         .lock()
                         .unwrap()
                         .release(fc_instance.get_address());
-                    return Err(InstanceError::InstanceCreation);
+                    return Err(InstanceError::InstanceStart);
                 }
             }
 
