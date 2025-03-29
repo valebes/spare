@@ -428,12 +428,21 @@ async fn invoke(
             return HttpResponse::InternalServerError().body("Failed to start instance\n");
         }
         match start_instance(&firecracker_builder, &db_pool, &data).await {
-            Ok(_) => {
-                let res = orchestrator.release_resources(data.vcpus.try_into().unwrap());
-                match res {
-                    Ok(body) => return HttpResponse::Ok().body(body),
-                    Err(_) => return HttpResponse::PayloadTooLarge().body("Payload too large\n"),
+            Ok(body) => {
+               match body {
+                    Ok(body) => {
+                        // Release resources
+                        let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
+                        return HttpResponse::Ok().body(body);
+                    }
+                    Err(e) => {
+                        // If an error occurs, release resources and return error
+                        let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
+                        return HttpResponse::InternalServerError()
+                            .body(format!("Failed to start instance: {:?}", e));
+                    }
                 }
+       
             }
             Err(e) => {
                 error!("Error!: {:?}", e);
