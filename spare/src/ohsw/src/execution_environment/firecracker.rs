@@ -39,7 +39,7 @@ impl FirecrackerBuilder {
         vcpus: i32,
         memory: i32,
     ) -> Result<FirecrackerInstance, FirepilotError> {
-        let mut network = self.network.lock();
+        let network = self.network.lock();
         match network {
             Ok(mut network) => {
                 if network.get().is_none() {

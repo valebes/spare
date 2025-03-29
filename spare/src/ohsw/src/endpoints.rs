@@ -1,6 +1,5 @@
 use std::{
-    sync::{Arc, RwLock},
-    time::Duration,
+    os::fd::AsRawFd, sync::{Arc, RwLock}, time::Duration
 };
 
 use actix_web::{
@@ -89,27 +88,34 @@ async fn offload(
                         // Cannot get resources from remote node, continue
                         continue;
                     }
-                    let remote_resources = remote_resources.unwrap();
-                    let vcpu = remote_resources.cpus.checked_sub(cpus as usize);
-                    let memory = remote_resources
-                        .memory
-                        .checked_sub((memory * 1024) as usize);
-                    // If resources are available, forward request
-                    if vcpu.is_some() && memory.is_some() {
-                        warn!("Forwarding request to {}", node.address());
-                        let body = node.invoke(data.clone()).await;
-                        match body {
-                            Ok(body) => {
-                                error!("Successfully forwarded request to {}", node.address());
-                                return HttpResponse::Ok().body(body);
+                    match remote_resources {
+                        Ok(remote_resources) => {
+                            // Check if resources are available
+                            let cpus = remote_resources.cpus.checked_sub(cpus as usize);
+                            // Memory is in MB, so multiply by 1024
+                            let memory = remote_resources
+                                .memory
+                                .checked_sub((memory * 1024) as usize);
+                            // If resources are available, forward request
+                            if cpus.is_some() && memory.is_some() {
+                                warn!("Forwarding request to {}", node.address());
+                                let body = node.invoke(data.clone()).await;
+                                match body {
+                                    Ok(body) => {
+                                        error!("Successfully forwarded request to {}", node.address());
+                                        return HttpResponse::Ok().body(body);
+                                    }
+                                    Err(_) => {
+                                        error!("Failed to forward request to {}", node.address());
+                                        continue;
+                                    }
+                                }
                             }
-                            Err(_) => {
-                                error!("Failed to forward request to {}", node.address());
-                                continue;
-                            }
+                        },
+                        Err(_) => {
+                            // Cannot get resources from remote node, continue
+                            continue;
                         }
-                    } else {
-                        continue;
                     }
                 }
             }
@@ -164,7 +170,22 @@ async fn start_instance(
             // Make sure the vsock socket is ready
             let mut path = fc_instance.get_vsock_path();
             path.push_str("_1234");
-            let socket = UnixListener::bind(path).unwrap();
+            let socket = UnixListener::bind(path);
+
+           if socket.is_err() {
+                // If an error occurs, delete the instance and set 'failed' status
+                instance.set_status("failed".to_string());
+                let _ = instance.update(&db_pool).await;
+                let _ = fc_instance.delete().await;
+                builder
+                    .network
+                    .lock()
+                    .unwrap()
+                    .release(fc_instance.get_address());
+                return Err(InstanceError::Unknown);
+            }
+            let socket = socket.unwrap();
+            info!("Socket created: {}", socket.as_raw_fd());
 
             // Start instance
             match fc_instance.start().await {
@@ -185,11 +206,54 @@ async fn start_instance(
 
             info!("Starting instance: {} ip: {}", instance.id, instance.ip);
 
-            let (stream, _) = socket.accept().await.unwrap();
+            let stream = socket.accept().await;
+            if stream.is_err() {
+                // If an error occurs, delete the instance and set 'failed' status
+                instance.set_status("failed".to_string());
+                let _ = instance.update(&db_pool).await;
+                let _ = fc_instance.delete().await;
+                builder
+                    .network
+                    .lock()
+                    .unwrap()
+                    .release(fc_instance.get_address());
+                return Err(InstanceError::Unknown);
+            }
+            let stream = stream.unwrap();
+
+
             let mut buf = [0; 1024];
-            stream.readable().await.unwrap();
-            stream.try_read(&mut buf).unwrap();
-            let message = String::from_utf8_lossy(&buf);
+            match stream.0.readable().await {
+                Ok(_) => {}
+                Err(_) => {
+                    // If an error occurs, delete the instance and set 'failed' status
+                    instance.set_status("failed".to_string());
+                    let _ = instance.update(&db_pool).await;
+                    let _ = fc_instance.delete().await;
+                    builder
+                        .network
+                        .lock()
+                        .unwrap()
+                        .release(fc_instance.get_address());
+                    return Err(InstanceError::Unknown);
+                }
+            }
+            match stream.0.try_read(buf.as_mut()) {
+                Ok(_) => {}
+                Err(_) => {
+                    // If an error occurs, delete the instance and set 'failed' status
+                    instance.set_status("failed".to_string());
+                    let _ = instance.update(&db_pool).await;
+                    let _ = fc_instance.delete().await;
+                    builder
+                        .network
+                        .lock()
+                        .unwrap()
+                        .release(fc_instance.get_address());
+                    return Err(InstanceError::Unknown);
+                }
+            }
+            let message: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buf);
 
             info!("Received message: {}", message);
 
