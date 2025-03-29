@@ -1,5 +1,8 @@
 use std::{
-    io, os::fd::AsRawFd, sync::{Arc, RwLock}, time::Duration
+    io,
+    os::fd::AsRawFd,
+    sync::{Arc, RwLock},
+    time::Duration,
 };
 
 use actix_web::{
@@ -237,11 +240,10 @@ async fn start_instance(
             }
             let stream = stream.unwrap();
 
-
             let mut buf = [0; 1024];
             let max_retries = 100;
             let mut retries = 0;
-            loop {    
+            loop {
                 if retries > max_retries {
                     // If an error occurs, delete the instance and set 'failed' status
                     instance.set_status("failed".to_string());
@@ -253,9 +255,9 @@ async fn start_instance(
                         .unwrap()
                         .release(fc_instance.get_address());
                     return Err(InstanceError::VSockTimeout);
-                }            
+                }
                 match stream.0.readable().await {
-                    Ok(_) => { }
+                    Ok(_) => {}
                     Err(_) => {
                         // If an error occurs, delete the instance and set 'failed' status
                         instance.set_status("failed".to_string());
@@ -268,7 +270,7 @@ async fn start_instance(
                             .release(fc_instance.get_address());
                         return Err(InstanceError::VSock);
                     }
-                }                
+                };
                 match stream.0.try_read(&mut buf.as_mut()) {
                     Ok(0) => break,
                     Ok(n) => {
@@ -276,25 +278,25 @@ async fn start_instance(
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                         buf.fill(0);
+                        retries += 1;
                         // If the stream is not ready, continue
                         continue;
                     }
                     Err(e) => {
-                    // If an error occurs, delete the instance and set 'failed' status
-                    instance.set_status("failed".to_string());
-                    let _ = instance.update(&db_pool).await;
-                    let _ = fc_instance.delete().await;
-                    builder
-                        .network
-                        .lock()
-                        .unwrap()
-                        .release(fc_instance.get_address());
-                    return Err(InstanceError::VSock);
-                }
-                    };
+                        // If an error occurs, delete the instance and set 'failed' status
+                        instance.set_status("failed".to_string());
+                        let _ = instance.update(&db_pool).await;
+                        let _ = fc_instance.delete().await;
+                        builder
+                            .network
+                            .lock()
+                            .unwrap()
+                            .release(fc_instance.get_address());
+                        return Err(InstanceError::VSock);
+                    }
+                };
             }
-            
-            
+
             let message: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buf);
 
             info!("Received message: {}", message);
