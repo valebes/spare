@@ -163,7 +163,13 @@ async fn start_instance(
                 fc_instance.get_address().to_string(),
                 8084,
             );
-            instance.insert(&db_pool).await.unwrap();
+            match instance.insert(&db_pool).await {
+                Ok(_) => {}
+                Err(e) => {
+                    error!("Failed to insert instance in the database: {:?}", e);
+                    return Err(InstanceError::Unknown);
+                }
+            }
 
             info!("Created new function instance: {}", instance.id);
 
@@ -309,16 +315,16 @@ async fn start_instance(
             let body = res.unwrap().body().await;
 
             // Cleanup instance
+            builder
+            .network
+            .lock()
+            .unwrap()
+            .release(fc_instance.get_address());
+        
             let _ = fc_instance.stop().await;
             let _ = fc_instance.delete().await;
             let _ = instance.set_status("terminated".to_string());
             let _ = instance.update(&db_pool).await;
-
-            builder
-                .network
-                .lock()
-                .unwrap()
-                .release(fc_instance.get_address());
 
             Ok(body)
         }
