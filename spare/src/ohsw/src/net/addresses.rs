@@ -41,7 +41,10 @@ impl Addresses {
         // If there are no ready addresses, we need to find one
         if self.available.is_empty() {
             let mut i = self.last_assigned + 1;
-            while self.filter.contains(self.network.nth(i).unwrap()) {
+            while let Some(ip) = self.network.nth(i) {
+                if !self.filter.contains(ip) {
+                    break;
+                }
                 i += 1;
                 if i >= self.network.size() - 1 as u32 {
                     // The last ip is reserved for broadcast
