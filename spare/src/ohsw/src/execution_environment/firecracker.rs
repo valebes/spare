@@ -10,6 +10,7 @@ use crate::net::{
 use builder::{executor::FirecrackerExecutorBuilder, Builder, Configuration};
 use firepilot::{machine::FirepilotError, *};
 use firepilot_models::models::{BootSource, Drive, MachineConfiguration, NetworkInterface};
+use log::info;
 use machine::Machine;
 
 /// Struct that acts as a builder for Firecracker instances.
@@ -41,16 +42,10 @@ impl FirecrackerBuilder {
         let network = self.network.lock();
         match network {
             Ok(mut network) => {
-                if network.get().is_none() {
-                    return Err(FirepilotError::Unknown(
-                        "No more addresses available".to_string(),
-                    ));
-                }
-
                 let address = network.get();
                 match address {
                     Some(ip) => {
-                        log::info!("Assigned IP address: {}", ip);
+                        info!("Assigned IP address: {}", ip);
                         let create_instance = FirecrackerInstance::new(
                             self.executable.clone(),
                             self.kernel.clone(),
@@ -65,7 +60,7 @@ impl FirecrackerBuilder {
                         .await;
                         match create_instance {
                             Ok(instance) => {
-                                log::info!("Created instance with IP address: {}", ip);
+                                info!("Created instance with IP address: {}", ip);
                                 return Ok(instance);
                             }
                             Err(e) => {

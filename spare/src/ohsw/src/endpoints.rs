@@ -429,7 +429,7 @@ async fn invoke(
         }
         match start_instance(&firecracker_builder, &db_pool, &data).await {
             Ok(body) => {
-               match body {
+                match body {
                     Ok(body) => {
                         // Release resources
                         let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
@@ -442,7 +442,6 @@ async fn invoke(
                             .body(format!("Failed to start instance: {:?}", e));
                     }
                 }
-       
             }
             Err(e) => {
                 error!("Error!: {:?}", e);
