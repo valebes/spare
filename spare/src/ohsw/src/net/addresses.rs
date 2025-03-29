@@ -28,7 +28,7 @@ impl Addresses {
             network,
             available: vec![],
             last_assigned: 1, // We start with 1 because .1 is reserved
-            filter: Filter::new(size, 0.0001).unwrap(),
+            filter: Filter::new(size, 0.000001).unwrap(),
         })
     }
 
@@ -52,14 +52,39 @@ impl Addresses {
                     return None; // No more addresses available
                 }
             }
-            let ip = self.network.nth(i).unwrap();
-            self.last_assigned = i;
-            assert!(self.filter.insert(ip).is_ok());
-            Some(ip)
+            match self.network.nth(i) {
+                Some(ip) => {
+                    self.last_assigned = i;
+                    match self.filter.insert(ip) {
+                        Ok(_) => {
+                            // Successfully inserted the IP into the filter
+                        }
+                        Err(_) => {
+                            // Failed to insert the IP into the filter, this should not happen
+                            panic!("Failed to insert IP into filter");
+                        }
+                    }
+                    return Some(ip);
+                }
+                None => return None, // No more addresses available
+            };
         } else {
-            let ip = self.available.pop().unwrap();
-            assert!(self.filter.insert(ip).is_ok());
-            Some(ip)
+            match self.available.pop() {
+                Some(ip) => {
+                    match self.filter.insert(ip) {
+                        Ok(_) => {
+                            // Successfully inserted the IP into the filter
+                        }
+                        Err(_) => {
+                            // Failed to insert the IP into the filter, this should not happen
+                            panic!("Failed to insert IP into filter");
+                        }
+                    }
+
+                    return Some(ip);
+                }
+                None => return None, // No more addresses available
+            };
         }
     }
 

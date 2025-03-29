@@ -67,7 +67,6 @@ impl std::fmt::Display for FirepilotError {
     }
 }
 
-
 /// An instance of microVM which can be created and deployed easily
 #[derive(Debug)]
 pub struct Machine {

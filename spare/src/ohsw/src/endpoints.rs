@@ -1,5 +1,7 @@
 use std::{
-    os::fd::AsRawFd, sync::{Arc, RwLock}, time::Duration
+    os::fd::AsRawFd,
+    sync::{Arc, RwLock},
+    time::Duration,
 };
 
 use actix_web::{
@@ -108,7 +110,10 @@ async fn offload(
                                 let body = node.invoke(data.clone()).await;
                                 match body {
                                     Ok(body) => {
-                                        error!("Successfully forwarded request to {}", node.address());
+                                        error!(
+                                            "Successfully forwarded request to {}",
+                                            node.address()
+                                        );
                                         return HttpResponse::Ok().body(body);
                                     }
                                     Err(_) => {
@@ -117,7 +122,7 @@ async fn offload(
                                     }
                                 }
                             }
-                        },
+                        }
                         Err(_) => {
                             // Cannot get resources from remote node, continue
                             continue;
@@ -184,7 +189,7 @@ async fn start_instance(
             path.push_str("_1234");
             let socket = UnixListener::bind(path);
 
-           if socket.is_err() {
+            if socket.is_err() {
                 // If an error occurs, delete the instance and set 'failed' status
                 instance.set_status("failed".to_string());
                 let _ = instance.update(&db_pool).await;
@@ -232,7 +237,6 @@ async fn start_instance(
                 return Err(InstanceError::VSock);
             }
             let stream = stream.unwrap();
-
 
             let mut buf = [0; 1024];
             match stream.0.readable().await {
@@ -322,10 +326,10 @@ async fn start_instance(
 
             // Cleanup instance
             builder
-            .network
-            .lock()
-            .unwrap()
-            .release(fc_instance.get_address());
+                .network
+                .lock()
+                .unwrap()
+                .release(fc_instance.get_address());
 
             let _ = fc_instance.stop().await;
             let _ = fc_instance.delete().await;
@@ -388,7 +392,7 @@ async fn invoke(
     let max_retries = 10;
     let mut retries = 0;
     loop {
-        if  retries > max_retries {
+        if retries > max_retries {
             // If an error occurs, release resources and return error
             let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
             return HttpResponse::InternalServerError().body("Failed to start instance\n");
@@ -488,64 +492,63 @@ mod test {
 
             match fc_instance {
                 Ok(mut fc_instance) => {
-                    
-            // VSOCK
-            let mut path = fc_instance.get_vsock_path();
-            path.push_str("_1234");
-            let socket = std::os::unix::net::UnixListener::bind(path).unwrap();
+                    // VSOCK
+                    let mut path = fc_instance.get_vsock_path();
+                    path.push_str("_1234");
+                    let socket = std::os::unix::net::UnixListener::bind(path).unwrap();
 
-            let start = Instant::now();
-            fc_instance.start().await.unwrap();
-            let (mut stream, _) = socket.accept().unwrap();
+                    let start = Instant::now();
+                    fc_instance.start().await.unwrap();
+                    let (mut stream, _) = socket.accept().unwrap();
 
-            let mut buf = [0; 1024];
-            stream.read(&mut buf).unwrap();
-            let message = String::from_utf8_lossy(&buf);
+                    let mut buf = [0; 1024];
+                    stream.read(&mut buf).unwrap();
+                    let message = String::from_utf8_lossy(&buf);
 
-            match message.contains("ready") {
-                true => {
-                    // Update cold start time
-                    cold_start_times.push(start.elapsed().as_nanos());
+                    match message.contains("ready") {
+                        true => {
+                            // Update cold start time
+                            cold_start_times.push(start.elapsed().as_nanos());
 
-                    // Forward request to instance
-                    let client = Client::default();
+                            // Forward request to instance
+                            let client = Client::default();
 
-                    let res;
+                            let res;
 
-                    // Invoke the function
-                    res = client
-                        .get(format!("http://{}:{}", fc_instance.get_address(), 8084))
-                        .send()
-                        .await;
+                            // Invoke the function
+                            res = client
+                                .get(format!("http://{}:{}", fc_instance.get_address(), 8084))
+                                .send()
+                                .await;
 
-                    if res.is_ok() {
-                        // Update execution time
-                        execution_times
-                            .push(start.elapsed().as_nanos() - cold_start_times.last().unwrap());
-                        i += 1;
-                    } else {
-                        // Remove last cold start time and retry
-                        let _ = cold_start_times.pop();
-                    }
-                }
-                false => {}
-            };
+                            if res.is_ok() {
+                                // Update execution time
+                                execution_times.push(
+                                    start.elapsed().as_nanos() - cold_start_times.last().unwrap(),
+                                );
+                                i += 1;
+                            } else {
+                                // Remove last cold start time and retry
+                                let _ = cold_start_times.pop();
+                            }
+                        }
+                        false => {}
+                    };
 
-            // Delete instance
-            let _ = fc_instance.stop().await;
-            builder
-                .network
-                .lock()
-                .unwrap()
-                .release(fc_instance.get_address());
-            let _ = fc_instance.delete().await;
+                    // Delete instance
+                    let _ = fc_instance.stop().await;
+                    builder
+                        .network
+                        .lock()
+                        .unwrap()
+                        .release(fc_instance.get_address());
+                    let _ = fc_instance.delete().await;
                 }
                 Err(e) => {
                     error!("Failed to create instance: {:?}", e);
                     i -= 1;
                     continue;
                 }
-                
             }
         }
 

@@ -218,7 +218,7 @@ impl Tap {
         let raw = TapRaw::new(name);
         if raw.is_err() {
             return Err(raw.err().unwrap());
-        }  
+        }
         let raw = raw.unwrap();
 
         info!("Create tap {}", name);

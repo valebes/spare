@@ -12,7 +12,6 @@ use firepilot::{machine::FirepilotError, *};
 use firepilot_models::models::{BootSource, Drive, MachineConfiguration, NetworkInterface};
 use machine::Machine;
 
-
 /// Struct that acts as a builder for Firecracker instances.
 pub struct FirecrackerBuilder {
     pub executable: String,
@@ -52,7 +51,7 @@ impl FirecrackerBuilder {
                 match address {
                     Some(ip) => {
                         log::info!("Assigned IP address: {}", ip);
-                        let create_instance =FirecrackerInstance::new(
+                        let create_instance = FirecrackerInstance::new(
                             self.executable.clone(),
                             self.kernel.clone(),
                             image,
@@ -93,7 +92,6 @@ impl FirecrackerBuilder {
     }
 }
 
-
 pub enum FirecrackerInstanceCreationError {
     /// Error creating the instance.
     CreationError(String),
@@ -101,7 +99,9 @@ pub enum FirecrackerInstanceCreationError {
 impl std::fmt::Display for FirecrackerInstanceCreationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FirecrackerInstanceCreationError::CreationError(e) => write!(f, "Creation error: {}", e),
+            FirecrackerInstanceCreationError::CreationError(e) => {
+                write!(f, "Creation error: {}", e)
+            }
         }
     }
 }
@@ -144,8 +144,7 @@ impl FirecrackerInstance {
         address: Ipv4Addr,
         gateway: Ipv4Addr,
         netmask: Ipv4Addr,
-    ) -> Result<Self, FirecrackerInstanceCreationError> 
-    { 
+    ) -> Result<Self, FirecrackerInstanceCreationError> {
         let uuid = uuid::Uuid::new_v4();
         let name = format!("firecracker-{}", uuid);
 
@@ -171,20 +170,24 @@ impl FirecrackerInstance {
         let tmp = Tap::create(&tap_name);
         match tmp {
             Ok(_) => log::info!("Created {}", tap_name),
-            Err(e) => return Err(FirecrackerInstanceCreationError::CreationError(format!(
-                "Failed to create {}: {}",
-                tap_name, e
-            ))),
+            Err(e) => {
+                return Err(FirecrackerInstanceCreationError::CreationError(format!(
+                    "Failed to create {}: {}",
+                    tap_name, e
+                )))
+            }
         }
         let tap = tmp.unwrap();
 
         let attach_tap = bridge::add_interface_to_bridge(interface_id(&tap_name).unwrap(), &bridge);
         match attach_tap {
             Ok(_) => log::info!("Added {} to {}", tap_name, bridge),
-            Err(e) => return Err(FirecrackerInstanceCreationError::CreationError(format!(
-                "Failed to add {} to {}: {}",
-                tap_name, bridge, e
-            ))),
+            Err(e) => {
+                return Err(FirecrackerInstanceCreationError::CreationError(format!(
+                    "Failed to add {} to {}: {}",
+                    tap_name, bridge, e
+                )))
+            }
         }
 
         let net = NetworkInterface {
