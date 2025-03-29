@@ -320,7 +320,7 @@ async fn start_instance(
             .lock()
             .unwrap()
             .release(fc_instance.get_address());
-        
+
             let _ = fc_instance.stop().await;
             let _ = fc_instance.delete().await;
             let _ = instance.set_status("terminated".to_string());
@@ -379,7 +379,14 @@ async fn invoke(
     }
 
     // Start instance
+    let max_retries = 10;
+    let mut retries = 0;
     loop {
+        if  retries > max_retries {
+            // If an error occurs, release resources and return error
+            let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
+            return HttpResponse::InternalServerError().body("Failed to start instance\n");
+        }
         match start_instance(&firecracker_builder, &db_pool, &data).await {
             Ok(_) => {
                 let res = orchestrator.release_resources(data.vcpus.try_into().unwrap());
@@ -390,10 +397,9 @@ async fn invoke(
             }
             Err(e) => {
                 error!("Error!: {:?}", e);
-                // If an error occurs, retry
-                continue;
             }
         };
+        retries += 1;
     }
 }
 
