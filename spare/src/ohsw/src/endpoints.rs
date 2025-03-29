@@ -1,7 +1,5 @@
 use std::{
-    os::fd::AsRawFd,
-    sync::{Arc, RwLock},
-    time::Duration,
+    io, os::fd::AsRawFd, sync::{Arc, RwLock}, time::Duration
 };
 
 use actix_web::{
@@ -28,6 +26,7 @@ pub enum InstanceError {
     InstanceCreation,
     InstanceStart,
     VSock,
+    VSockTimeout,
     VSockCreation,
     Database,
     Timeout,
@@ -238,10 +237,49 @@ async fn start_instance(
             }
             let stream = stream.unwrap();
 
+
             let mut buf = [0; 1024];
-            match stream.0.readable().await {
-                Ok(_) => {}
-                Err(_) => {
+            let max_retries = 100;
+            let mut retries = 0;
+            loop {    
+                if retries > max_retries {
+                    // If an error occurs, delete the instance and set 'failed' status
+                    instance.set_status("failed".to_string());
+                    let _ = instance.update(&db_pool).await;
+                    let _ = fc_instance.delete().await;
+                    builder
+                        .network
+                        .lock()
+                        .unwrap()
+                        .release(fc_instance.get_address());
+                    return Err(InstanceError::VSockTimeout);
+                }            
+                match stream.0.readable().await {
+                    Ok(_) => { }
+                    Err(_) => {
+                        // If an error occurs, delete the instance and set 'failed' status
+                        instance.set_status("failed".to_string());
+                        let _ = instance.update(&db_pool).await;
+                        let _ = fc_instance.delete().await;
+                        builder
+                            .network
+                            .lock()
+                            .unwrap()
+                            .release(fc_instance.get_address());
+                        return Err(InstanceError::VSock);
+                    }
+                }                
+                match stream.0.try_read(&mut buf.as_mut()) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        println!("read {} bytes", n);
+                    }
+                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                        buf.fill(0);
+                        // If the stream is not ready, continue
+                        continue;
+                    }
+                    Err(e) => {
                     // If an error occurs, delete the instance and set 'failed' status
                     instance.set_status("failed".to_string());
                     let _ = instance.update(&db_pool).await;
@@ -253,22 +291,10 @@ async fn start_instance(
                         .release(fc_instance.get_address());
                     return Err(InstanceError::VSock);
                 }
+                    };
             }
-            match stream.0.try_read(buf.as_mut()) {
-                Ok(_) => {}
-                Err(_) => {
-                    // If an error occurs, delete the instance and set 'failed' status
-                    instance.set_status("failed".to_string());
-                    let _ = instance.update(&db_pool).await;
-                    let _ = fc_instance.delete().await;
-                    builder
-                        .network
-                        .lock()
-                        .unwrap()
-                        .release(fc_instance.get_address());
-                    return Err(InstanceError::VSock);
-                }
-            }
+            
+            
             let message: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buf);
 
             info!("Received message: {}", message);
