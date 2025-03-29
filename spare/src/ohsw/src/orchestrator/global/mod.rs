@@ -2,8 +2,6 @@ use dyn_clone::DynClone;
 use emergency::Emergency;
 use log::warn;
 
-use super::Node;
-
 pub mod emergency;
 pub mod geo_distance;
 pub mod simple_cellular;
@@ -237,7 +235,7 @@ impl NeighborNodeList {
     /// Sort the nodes by distance from the current node
     /// # Arguments
     /// * `current` - Current node
-    pub fn sort_by_distance(&mut self, current: &mut dyn NeighborNodeWithDistance) {
+    pub fn sort_by_distance(&mut self, current: &mut dyn NeighborNode) {
         let mut distances: Vec<(f64, usize)> = self
             .nodes
             .iter_mut()

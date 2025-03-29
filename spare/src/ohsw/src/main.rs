@@ -182,10 +182,9 @@ async fn main() -> std::io::Result<()> {
 
     // Extract identity (this node) from the list of nodes
     let identity = nodes
-        .extract_if(.., |n| {
-            n.address == format!("{worker_address}:{worker_port}")
-        })
-        .next()
+        .iter()
+        .position(|n| n.address == format!("{worker_address}:{worker_port}"))
+        .map(|i| nodes.remove(i))
         .unwrap();
     info!("Found {} nodes", nodes.len());
     for node in &nodes {
