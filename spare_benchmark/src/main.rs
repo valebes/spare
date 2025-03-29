@@ -1,14 +1,8 @@
 use std::{
-    env,
-    fs::OpenOptions,
-    io::Write,
-    path::Path,
-    str::FromStr,
-    sync::{
+    env, fs::OpenOptions, io::Write, path::Path, str::FromStr, sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
-    },
-    time::Duration,
+    }, time::Duration
 };
 
 use clap::Parser;
@@ -25,7 +19,8 @@ use iggy::{
 };
 use log::{error, info, warn};
 use longitude::Location;
-use rand::{rng, Rng};
+use rand::{distr::Uniform, rng, Rng};
+use rand::distr::Distribution;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -285,17 +280,20 @@ async fn test(
     let latency = Arc::new(Mutex::new(Vec::new()));
     let completed = Arc::new(AtomicUsize::new(0));
     let failed = Arc::new(AtomicUsize::new(0));
+    let mut rng = rand::rng();
 
     for i in 0..iterations {
         println!("Iteration: {}", i);
         let latency_per_epoch_tmp = Arc::new(Mutex::new(Vec::new()));
         let mut handles = Vec::new();
 
+        let uniform_distribution = Uniform::new(0, nodes.len()).unwrap();
+
         let start_time = chrono::Utc::now().naive_utc().to_string();
         for _j in 0..(request_per_epoch) {
             let latency_per_epoch_tmp_copy = Arc::clone(&latency_per_epoch_tmp);
             let latency_tmp = Arc::clone(&latency);
-            let node = nodes.get(rng().random_range(0..nodes.len())).unwrap();
+            let node = nodes.get(uniform_distribution.sample(&mut rng)).unwrap();
             let address = node.address.clone();
 
             let completed_tmp = Arc::clone(&completed);
