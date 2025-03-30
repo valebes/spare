@@ -117,7 +117,7 @@ pub struct InvokeFunction {
     pub image: String,
     pub vcpus: i32,
     pub memory: i32,
-    pub payload: String,
+    pub payload: Option<String>,
     pub emergency: bool,
     pub hops: i32,
 }
@@ -309,7 +309,7 @@ async fn test(
                     image: function_path_tmp,
                     vcpus: 2,
                     memory: 256,
-                    payload: "test".to_string(),
+                    payload: None,
                     emergency: false,
                     hops: 0,
                 };

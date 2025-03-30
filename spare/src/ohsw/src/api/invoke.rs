@@ -10,7 +10,7 @@ pub struct InvokeFunction {
     // The amount of memory allocated for the function
     pub memory: i32,
     // The payload to be passed to the function
-    pub payload: String,
+    pub payload: Option<String>,
     // A flag indicating if the invocation is an emergency
     pub emergency: bool,
     // The number of hops the invocation has taken

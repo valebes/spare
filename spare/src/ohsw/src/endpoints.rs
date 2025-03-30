@@ -341,18 +341,20 @@ async fn start_instance(
                 // Check payload, if empty do a get
                 // Otherwise, create a Payload object
                 // and do a post
-                let payload = Payload {
-                    payload: data.payload.clone(),
-                };
-                if payload.payload.is_empty() {
+                
+
+                if data.payload.is_none() {
                     res = client
                         .get(format!("http://{}:{}", instance.ip, instance.port))
                         .send()
                         .await;
                 } else {
+                    let payload = Payload {
+                        payload: data.payload.clone().unwrap(),
+                    };
                     res = client
                         .post(format!("http://{}:{}", instance.ip, instance.port))
-                        .send_json(payload)
+                        .send_json(&payload)
                         .await;
                 }
 
