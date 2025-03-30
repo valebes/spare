@@ -16,7 +16,7 @@ use log::{error, info, warn};
 use sqlx::{sqlite, Pool};
 
 use crate::{
-    api::{self, invoke::InvokeFunction},
+    api::{self, invoke::InvokeFunction, payload::Payload},
     db::{self, models::Instance},
     execution_environment::firecracker::FirecrackerBuilder,
     orchestrator::{self, global::NeighborNode},
@@ -337,10 +337,24 @@ async fn start_instance(
                         .release(fc_instance.get_address());
                     return Err(InstanceError::ApplicationNotInitialized);
                 }
-                res = client
-                    .get(format!("http://{}:{}", instance.ip, instance.port))
-                    .send()
-                    .await;
+                
+                // Check payload, if empty do a get
+                // Otherwise, create a Payload object
+                // and do a post
+                let payload = Payload {
+                    payload: data.payload.clone(),
+                };
+                if payload.payload.is_empty() {
+                    res = client
+                        .get(format!("http://{}:{}", instance.ip, instance.port))
+                        .send()
+                        .await;
+                } else {
+                    res = client
+                        .post(format!("http://{}:{}", instance.ip, instance.port))
+                        .send_json(payload)
+                        .await;
+                }
 
                 if res.is_ok() {
                     break;
