@@ -62,82 +62,6 @@ async fn emergency(orchestrator: web::Data<Arc<orchestrator::Orchestrator>>) -> 
     HttpResponse::Ok().json(in_emergency)
 }
 
-/// Method to offload the request to a remote node
-async fn offload(
-    orchestrator: web::Data<Arc<orchestrator::Orchestrator>>,
-    data: web::Json<InvokeFunction>,
-    req: HttpRequest,
-) -> HttpResponse<BoxBody> {
-    let cpus = data.vcpus;
-    let memory = data.memory;
-
-    // Iterate over the nodes
-    warn!("Function must be offloaded");
-    for i in 0..orchestrator.number_of_nodes() {
-        warn!("Checking node: {}", i);
-        match orchestrator.get_remote_nth_node(i) {
-            Some(mut node) => {
-                // Do not forward request to origin
-                if node
-                    .address()
-                    .contains(req.peer_addr().unwrap().ip().to_string().as_str())
-                {
-                    continue;
-                }
-
-                // Check if resource are available on the remote node
-                let client = Client::default();
-                let response = client
-                    .get(format!("http://{}/resources", node.address()))
-                    .send()
-                    .await;
-                if response.is_ok() {
-                    let remote_resources =
-                        response.unwrap().json::<api::resources::Resources>().await;
-                    if remote_resources.is_err() {
-                        // Cannot get resources from remote node, continue
-                        continue;
-                    }
-                    match remote_resources {
-                        Ok(remote_resources) => {
-                            // Check if resources are available
-                            let cpus = remote_resources.cpus.checked_sub(cpus as usize);
-                            // Memory is in MB, so multiply by 1024
-                            let memory = remote_resources
-                                .memory
-                                .checked_sub((memory * 1024) as usize);
-                            // If resources are available, forward request
-                            if cpus.is_some() && memory.is_some() {
-                                warn!("Forwarding request to {}", node.address());
-                                let body = node.invoke(data.clone()).await;
-                                match body {
-                                    Ok(body) => {
-                                        error!(
-                                            "Successfully forwarded request to {}",
-                                            node.address()
-                                        );
-                                        return HttpResponse::Ok().body(body);
-                                    }
-                                    Err(_) => {
-                                        error!("Failed to forward request to {}", node.address());
-                                        continue;
-                                    }
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            // Cannot get resources from remote node, continue
-                            continue;
-                        }
-                    }
-                }
-            }
-            None => break,
-        }
-    }
-    return HttpResponse::InternalServerError().body("Insufficient resources\n");
-}
-
 /// Method to start a new instance on the node
 async fn start_instance(
     firecracker_builder: &web::Data<RwLock<FirecrackerBuilder>>,
@@ -337,11 +261,10 @@ async fn start_instance(
                         .release(fc_instance.get_address());
                     return Err(InstanceError::ApplicationNotInitialized);
                 }
-                
+
                 // Check payload, if empty do a get
                 // Otherwise, create a Payload object
                 // and do a post
-                
 
                 if data.payload.is_none() {
                     res = client
@@ -429,7 +352,7 @@ async fn invoke(
         if _resources.is_ok() {
             let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
         }
-        let body = offload(orchestrator.clone(), data, req).await;
+        let body = orchestrator.offload(data, req).await;
         return body;
     }
 

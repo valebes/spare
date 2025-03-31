@@ -1,6 +1,5 @@
 use std::time::Instant;
 
-use log::info;
 use longitude::Location;
 use rand::thread_rng;
 use rand_distr::{Distribution, Exp};
@@ -9,8 +8,7 @@ use super::{NeighborNode, NeighborNodeWithLatency};
 
 /// Neighbour Node Selection strategy in which the distance
 /// is calculated with a simple model that describes the
-/// latency between two nodes connected through the
-/// same base station.
+/// latency between two nodes connected using a cellular network.
 #[derive(Clone)]
 pub struct SimpleCellular {
     /// The position of the node
@@ -38,7 +36,7 @@ impl NeighborNode for SimpleCellular {
     }
 }
 impl super::Distance for SimpleCellular {
-    fn distance(&mut self, node: &mut dyn NeighborNode) -> f64 {
+    fn distance(&self, node: &mut dyn NeighborNode) -> f64 {
         let location_a = Location::from(self.position.0, self.position.1);
         let location_b = Location::from(node.position().0, node.position().1);
 

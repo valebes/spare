@@ -2,7 +2,6 @@
 //! SPARE is a serverless platform that aims to provide a scalable and efficient serverless platform for edge computing.
 //! The code provided here is a prototype of the SPARE platform.
 
-use crate::orchestrator::Node;
 use std::{
     env,
     fs::File,
@@ -13,7 +12,11 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use actix_web::{middleware, web::{Data, JsonConfig}, App, HttpServer};
+use actix_web::{
+    middleware,
+    web::{Data, JsonConfig},
+    App, HttpServer,
+};
 use clap::{arg, command, Parser};
 use local_ip_address::local_ip;
 use log::{error, info};
@@ -25,7 +28,11 @@ use ohsw::{
         addresses::Addresses,
         iggy::{IggyConnector, Operation, Payload},
     },
-    orchestrator::{self, global::emergency::Emergency, Orchestrator},
+    orchestrator::{
+        self,
+        global::{emergency::Emergency, identity::Node},
+        Orchestrator,
+    },
 };
 use sqlx::{sqlite, Pool};
 

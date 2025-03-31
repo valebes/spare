@@ -1,9 +1,15 @@
+use actix_web::web;
+use awc::Client;
 use dyn_clone::DynClone;
 use emergency::Emergency;
 use log::warn;
 
+use crate::api::invoke::InvokeFunction;
+
+use super::InvokeError;
 pub mod emergency;
 pub mod geo_distance;
+pub mod identity;
 pub mod simple_cellular;
 
 /// Enum that represents the different strategies
@@ -21,23 +27,27 @@ pub enum NeighborNodeStrategy {
 }
 
 /// Trait that represents a Neighbor Node
-pub trait NeighborNode: DynClone {
+pub trait NeighborNode {
     fn address(&self) -> String;
     fn position(&self) -> (f64, f64);
     fn emergency(&self) -> bool;
     fn set_emergency(&mut self, emergency: bool);
 }
 
-dyn_clone::clone_trait_object!(NeighborNode);
-
-pub trait Distance: DynClone {
+pub trait Distance {
     /// Get the distance between two points + another metric (distance, latency)
-    fn distance(&mut self, other: &mut dyn NeighborNode) -> f64;
+    fn distance(&self, other: &mut dyn NeighborNode) -> f64;
 }
-pub trait Latency: DynClone {
+pub trait Latency {
     /// Get the latency between two points
     fn latency(&mut self, other: &mut dyn NeighborNodeWithLatency) -> f64;
 }
+
+/// Trait that represents a Neighbor Node with distance
+pub trait NeighborNodeWithDistance: NeighborNode + Distance + DynClone + Send + Sync {}
+impl<T: NeighborNode + Distance + DynClone + Send + Sync> NeighborNodeWithDistance for T {}
+
+dyn_clone::clone_trait_object!(NeighborNodeWithDistance);
 
 /// Trait that represents a Neighbor Node with Latency and Distance
 pub trait NeighborNodeWithLatency:
@@ -47,12 +57,6 @@ pub trait NeighborNodeWithLatency:
 impl<T: NeighborNode + Distance + Latency + DynClone + Send + Sync> NeighborNodeWithLatency for T {}
 
 dyn_clone::clone_trait_object!(NeighborNodeWithLatency);
-
-/// Trait that represents a Neighbor Node with distance
-pub trait NeighborNodeWithDistance: NeighborNode + Distance + DynClone + Send + Sync {}
-impl<T: NeighborNode + Distance + DynClone + Send + Sync> NeighborNodeWithDistance for T {}
-
-dyn_clone::clone_trait_object!(NeighborNodeWithDistance);
 
 #[derive(Clone)]
 pub enum NeighborNodeType {
@@ -89,13 +93,62 @@ impl NeighborNode for NeighborNodeType {
     }
 }
 
+#[derive(Clone)]
+pub struct RemoteNode {
+    node: NeighborNodeType,
+}
+impl RemoteNode {
+    pub fn new(node: NeighborNodeType) -> Self {
+        Self { node }
+    }
+
+    // Provide reference to the inner node
+    pub fn reveal(&self) -> &NeighborNodeType {
+        &self.node
+    }
+    // Provide mutable reference to the inner node
+    pub fn reveal_mut(&mut self) -> &mut NeighborNodeType {
+        &mut self.node
+    }
+
+    pub fn as_neighbor_node(&mut self) -> &mut dyn NeighborNode {
+        match &mut self.node {
+            NeighborNodeType::Distance(node) => node.as_mut(),
+            NeighborNodeType::Latency(node) => node.as_mut(),
+        }
+    }
+
+    pub async fn invoke(&self, data: InvokeFunction) -> Result<web::Bytes, InvokeError> {
+        let client = Client::default();
+        let invoke = client
+            .post(format!("http://{}/invoke", self.node.address()))
+            .content_type("application/json")
+            .send_json(&data)
+            .await;
+
+        if invoke.is_err() {
+            return Err(InvokeError::Unknown);
+        } else {
+            let mut invoke = invoke.unwrap();
+            if invoke.status().is_success() {
+                match invoke.body().await {
+                    Ok(body) => Ok(body),
+                    Err(_) => Err(InvokeError::Unknown),
+                }
+            } else {
+                Err(InvokeError::Unknown)
+            }
+        }
+    }
+}
+
 /// Struct that represents the Neighbor Nodes
 /// available in the system.
 #[derive(Clone)]
 pub struct NeighborNodeList {
     /// List of nodes
-    pub nodes: Vec<Box<NeighborNodeType>>,
-    /// Strategy to calculate the distance
+    pub nodes: Vec<RemoteNode>,
+    /// Strategy to calculate the nearest node
     strategy: NeighborNodeStrategy,
     /// Emergency Position and Radius
     emergency: Option<Emergency>, // (Longitude, Latitude, Radius in meters)
@@ -132,14 +185,15 @@ impl NeighborNodeList {
         match self.strategy {
             NeighborNodeStrategy::GeoDistance => {
                 self.nodes
-                    .push(Box::new(NeighborNodeType::Distance(Box::new(
+                    .push(RemoteNode::new(NeighborNodeType::Distance(Box::new(
                         geo_distance::GeoDistance::new(position, address),
                     ))));
             }
             NeighborNodeStrategy::SimpleCellular => {
-                self.nodes.push(Box::new(NeighborNodeType::Latency(Box::new(
-                    simple_cellular::SimpleCellular::new(position, address),
-                ))));
+                self.nodes
+                    .push(RemoteNode::new(NeighborNodeType::Latency(Box::new(
+                        simple_cellular::SimpleCellular::new(position, address),
+                    ))));
             }
         }
     }
@@ -148,10 +202,10 @@ impl NeighborNodeList {
     /// # Arguments
     /// * 'position' - Position of the emergency as (Longitude, Latitude)
     /// * 'radius' - Radius of the emergency in meters
-    pub fn set_emergency(&mut self, mut em_pos: Emergency) {
+    pub fn set_emergency(&mut self, em_pos: Emergency) {
         for node in self.nodes.iter_mut() {
-            if em_pos.distance(&mut **node) <= em_pos.radius {
-                node.set_emergency(true);
+            if em_pos.distance(&mut **&mut node.as_neighbor_node()) <= em_pos.radius {
+                node.as_neighbor_node().set_emergency(true);
             }
         }
         self.emergency = Some(em_pos);
@@ -161,7 +215,7 @@ impl NeighborNodeList {
     pub fn clear_emergency(&mut self) {
         self.emergency = None;
         for node in self.nodes.iter_mut() {
-            node.set_emergency(false);
+            node.as_neighbor_node().set_emergency(false);
         }
     }
 
@@ -172,12 +226,12 @@ impl NeighborNodeList {
     /// # Returns
     /// * The closest node if it exists
     /// * None if the list is empty
-    pub fn get_nth(&mut self, nth: usize) -> Option<&dyn NeighborNode> {
+    pub fn get_nth(&mut self, nth: usize) -> Option<&mut RemoteNode> {
         let mut count = 0;
-        for node in self.nodes.iter() {
-            if !node.emergency() {
+        for node in self.nodes.iter_mut() {
+            if !node.as_neighbor_node().emergency() {
                 if count == nth {
-                    return Some(&**node);
+                    return Some(node);
                 }
                 count += 1;
             }
@@ -218,7 +272,7 @@ impl NeighborNodeList {
             .nodes
             .iter_mut()
             .enumerate()
-            .map(|(i, node)| match node.as_mut() {
+            .map(|(i, node)| match node.reveal_mut() {
                 NeighborNodeType::Latency(node) => (node.latency(current), i),
                 _ => panic!("Node is not a latency node"),
             })
@@ -228,7 +282,7 @@ impl NeighborNodeList {
 
         self.nodes = latencies
             .into_iter()
-            .map(|(_, i)| dyn_clone::clone_box(&*self.nodes[i])) // Use `dyn_clone` to clone the trait object
+            .map(|(_, i)| self.nodes[i].clone())
             .collect();
     }
 
@@ -236,22 +290,17 @@ impl NeighborNodeList {
     /// # Arguments
     /// * `current` - Current node
     pub fn sort_by_distance(&mut self, current: &mut dyn NeighborNode) {
-        let mut distances: Vec<(f64, usize)> = self
-            .nodes
-            .iter_mut()
-            .enumerate()
-            .map(|(i, node)| match node.as_mut() {
-                NeighborNodeType::Distance(node) => (node.distance(current), i),
+        self.nodes.sort_by(|a: &RemoteNode, b: &RemoteNode| {
+            let distance_a = match a.reveal() {
+                NeighborNodeType::Distance(node) => node.distance(current),
                 _ => panic!("Node is not a distance node"),
-            })
-            .collect();
-
-        distances.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-
-        self.nodes = distances
-            .into_iter()
-            .map(|(_, i)| dyn_clone::clone_box(&*self.nodes[i])) // Use `dyn_clone` to clone the trait object
-            .collect();
+            };
+            let distance_b = match b.reveal() {
+                NeighborNodeType::Distance(node) => node.distance(current),
+                _ => panic!("Node is not a distance node"),
+            };
+            distance_a.partial_cmp(&distance_b).unwrap()
+        });
     }
 }
 
@@ -279,7 +328,13 @@ mod tests {
             radius: 100.0,
         };
         list.set_emergency(emergency);
-        assert_eq!(list.nodes.iter().filter(|node| node.emergency()).count(), 1);
+        assert_eq!(
+            list.nodes
+                .iter_mut()
+                .filter(|node| node.reveal().emergency())
+                .count(),
+            1
+        );
     }
 
     #[test]
@@ -294,7 +349,13 @@ mod tests {
         };
         list.set_emergency(emergency);
         list.clear_emergency();
-        assert_eq!(list.nodes.iter().filter(|node| node.emergency()).count(), 0);
+        assert_eq!(
+            list.nodes
+                .iter()
+                .filter(|node| node.reveal().emergency())
+                .count(),
+            0
+        );
     }
 
     #[test]
@@ -309,7 +370,7 @@ mod tests {
             address: "current".to_string(),
             emergency: false,
         });
-        assert_eq!(list.nodes[0].address(), "node1");
+        assert_eq!(list.nodes[0].reveal().address(), "node1");
     }
 
     #[test]
@@ -328,7 +389,7 @@ mod tests {
         });
         for node in list.nodes.iter_mut() {
             // print latency
-            match node.as_mut() {
+            match node.reveal_mut() {
                 NeighborNodeType::Latency(node) => println!(
                     "Latency: {}",
                     node.latency(&mut simple_cellular::SimpleCellular {
@@ -342,6 +403,6 @@ mod tests {
                 _ => (),
             }
         }
-        assert_eq!(list.nodes[0].address(), "node1");
+        assert_eq!(list.nodes[0].reveal().address(), "node1");
     }
 }

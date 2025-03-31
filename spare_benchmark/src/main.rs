@@ -1,8 +1,14 @@
 use std::{
-    env, fs::OpenOptions, io::Write, path::Path, str::FromStr, sync::{
+    env,
+    fs::OpenOptions,
+    io::Write,
+    path::Path,
+    str::FromStr,
+    sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
-    }, time::Duration
+    },
+    time::Duration,
 };
 
 use clap::Parser;
@@ -19,8 +25,8 @@ use iggy::{
 };
 use log::{error, info, warn};
 use longitude::Location;
-use rand::{distr::Uniform, rng, Rng};
 use rand::distr::Distribution;
+use rand::distr::Uniform;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -99,7 +105,7 @@ enum Operation {
 
 // Or a Vec of Nodes or a single emergency point
 #[derive(Deserialize, Serialize)]
-pub enum Payload {
+enum Payload {
     Nodes(Vec<Node>),
     Emergency(Emergency),
     Period(Period),

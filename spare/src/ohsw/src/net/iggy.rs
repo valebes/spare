@@ -11,7 +11,7 @@ use iggy::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::orchestrator::{global::emergency::Emergency, Node};
+use crate::orchestrator::global::{emergency::Emergency, identity::Node};
 
 const STREAM_ID: u32 = 1;
 const TOPIC_ID: u32 = 1;

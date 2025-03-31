@@ -321,7 +321,7 @@ mod tests {
 
         assert!(instance.is_ok());
         match instance {
-            Ok(mut instance) => {
+            Ok(instance) => {
                 assert_eq!(instance.get_address(), address);
                 assert_eq!(instance.get_vsock_path(), "/tmp/vsock.sock");
                 assert_eq!(instance.get_status().await, "false");

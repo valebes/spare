@@ -1,4 +1,4 @@
-use super::{Distance, NeighborNode, NeighborNodeWithDistance};
+use super::{Distance, NeighborNode};
 use longitude::Location;
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +12,7 @@ pub struct Emergency {
     pub radius: f64,
 }
 impl Distance for Emergency {
-    fn distance(&mut self, node: &mut dyn NeighborNode) -> f64 {
+    fn distance(&self, node: &mut dyn NeighborNode) -> f64 {
         let location_a = Location::from(self.position.0, self.position.1);
         let location_b = Location::from(node.position().0, node.position().1);
 
