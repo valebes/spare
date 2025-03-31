@@ -172,6 +172,9 @@ impl Orchestrator {
         data: web::Json<InvokeFunction>,
         req: HttpRequest,
     ) -> HttpResponse<BoxBody> {
+
+        let mut global_resources = self.global_resources.write().unwrap();
+
         let cpus = data.vcpus;
         let memory = data.memory;
 
@@ -181,7 +184,7 @@ impl Orchestrator {
             warn!("Checking node: {}", i);
             match Orchestrator::get_remote_nth_node(
                 &mut self.identity.clone(),
-                &mut self.global_resources.write().unwrap(),
+                &mut global_resources, // Todo 
                 i,
             ) {
                 Some(node) => {
