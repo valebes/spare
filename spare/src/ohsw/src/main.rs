@@ -271,6 +271,7 @@ async fn main() -> std::io::Result<()> {
     let server = HttpServer::new(move || {
         App::new()
             .wrap(middleware::Compress::default()) // Create option to enable or disable gzip compression
+            .data(web::JsonConfig::default().limit(1024 * 1024 * 50))
             .app_data(Data::new(pool_clone.clone()))
             .app_data(builder.clone())
             .app_data(Data::new(orchestrator.clone()))
