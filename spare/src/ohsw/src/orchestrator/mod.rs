@@ -9,7 +9,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use awc::{body::BoxBody, Client};
 use global::{
     emergency::Emergency, geo_distance::GeoDistance, identity::Node, Distance, NeighborNode,
-    NeighborNodeList, NeighborNodeStrategy, RemoteNode,
+    NeighborNodeList, NeighborNodeStrategy, NeighborNodeType,
 };
 use local_resources::LocalResources;
 use log::{error, info, warn};
@@ -118,7 +118,7 @@ impl Orchestrator {
         let res = lock
             .nodes
             .iter()
-            .filter(|node| !node.reveal().emergency())
+            .filter(|node| !node.emergency())
             .count();
         info!(
             "Total Number of Nodes: {}, Nodes Available: {}",
@@ -131,24 +131,20 @@ impl Orchestrator {
     /// Given a node, find it in the list and return a mutable reference to it
     pub fn contains<'a>(
         &mut self,
-        node: &mut RemoteNode,
+        node: &mut NeighborNodeType,
         node_list: &'a mut NeighborNodeList,
-    ) -> Option<&'a mut RemoteNode> {
+    ) -> Option<&'a mut NeighborNodeType> {
         // Check if the node is in the list
         for n in node_list.nodes.iter_mut() {
-            if n.reveal().address() == node.reveal().address() {
+            if n.address() == node.address() {
                 return Some(n);
             }
         }
         None
     }
-    
+
     /// Get the nth node available in the system
-    pub fn get_remote_nth_node(
-        &self,
-        identity: &mut Node,
-        index: usize,
-    ) -> Option<RemoteNode> {
+    pub fn get_remote_nth_node(&self, identity: &mut Node, index: usize) -> Option<NeighborNodeType> {
         let mut node_list = self.global_resources.write().unwrap();
         // Check the strategy
         match node_list.strategy() {
@@ -161,7 +157,7 @@ impl Orchestrator {
         let node = node_list.get_nth(index);
         match node {
             Some(node) => {
-                if node.reveal().emergency() {
+                if node.emergency() {
                     error!("Node is in emergency mode");
                     return None;
                 }
@@ -195,14 +191,10 @@ impl Orchestrator {
         warn!("Function must be offloaded");
         for i in 0..self.number_of_nodes() {
             warn!("Checking node: {}", i);
-            match self.get_remote_nth_node(
-                &mut self.identity.clone(),
-                i,
-            ) {
+            match self.get_remote_nth_node(&mut self.identity.clone(), i) {
                 Some(node) => {
                     // Do not forward request to origin
                     if node
-                        .reveal()
                         .address()
                         .contains(req.peer_addr().unwrap().ip().to_string().as_str())
                     {
@@ -212,7 +204,7 @@ impl Orchestrator {
                     // Check if resource are available on the remote node
                     let client = Client::default();
                     let response = client
-                        .get(format!("http://{}/resources", node.reveal().address()))
+                        .get(format!("http://{}/resources", node.address()))
                         .send()
                         .await;
                     if response.is_ok() {
@@ -232,20 +224,20 @@ impl Orchestrator {
                                     .checked_sub((memory * 1024) as usize);
                                 // If resources are available, forward request
                                 if cpus.is_some() && memory.is_some() {
-                                    warn!("Forwarding request to {}", node.reveal().address());
+                                    warn!("Forwarding request to {}", node.address());
                                     let body = node.invoke(data.clone()).await;
                                     match body {
                                         Ok(body) => {
                                             error!(
                                                 "Successfully forwarded request to {}",
-                                                node.reveal().address()
+                                                node.address()
                                             );
                                             return HttpResponse::Ok().body(body);
                                         }
                                         Err(_) => {
                                             error!(
                                                 "Failed to forward request to {}",
-                                                node.reveal().address()
+                                                node.address()
                                             );
                                             continue;
                                         }

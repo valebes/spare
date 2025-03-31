@@ -63,6 +63,33 @@ pub enum NeighborNodeType {
     Distance(Box<dyn NeighborNodeWithDistance>),
     Latency(Box<dyn NeighborNodeWithLatency>),
 }
+impl NeighborNodeType {
+    pub async fn invoke(&self, data: InvokeFunction) -> Result<web::Bytes, InvokeError> {
+        let client = Client::default();
+        let invoke = client
+            .post(format!("http://{}/invoke", self.address()))
+            .content_type("application/json")
+            .send_json(&data)
+            .await;
+
+        if invoke.is_err() {
+            return Err(InvokeError::Unknown);
+        } else {
+            let mut invoke = match invoke {
+                Ok(invoke) => invoke,
+                Err(_) => return Err(InvokeError::Unknown),
+            };
+            if invoke.status().is_success() {
+                match invoke.body().await {
+                    Ok(body) => Ok(body),
+                    Err(_) => Err(InvokeError::Unknown),
+                }
+            } else {
+                Err(InvokeError::Unknown)
+            }
+        }
+    }
+}
 impl NeighborNode for NeighborNodeType {
     fn address(&self) -> String {
         match self {
@@ -93,61 +120,12 @@ impl NeighborNode for NeighborNodeType {
     }
 }
 
-#[derive(Clone)]
-pub struct RemoteNode {
-    node: NeighborNodeType,
-}
-impl RemoteNode {
-    pub fn new(node: NeighborNodeType) -> Self {
-        Self { node }
-    }
-
-    // Provide reference to the inner node
-    pub fn reveal(&self) -> &NeighborNodeType {
-        &self.node
-    }
-    // Provide mutable reference to the inner node
-    pub fn reveal_mut(&mut self) -> &mut NeighborNodeType {
-        &mut self.node
-    }
-
-    pub fn as_neighbor_node(&mut self) -> &mut dyn NeighborNode {
-        match &mut self.node {
-            NeighborNodeType::Distance(node) => node.as_mut(),
-            NeighborNodeType::Latency(node) => node.as_mut(),
-        }
-    }
-
-    pub async fn invoke(&self, data: InvokeFunction) -> Result<web::Bytes, InvokeError> {
-        let client = Client::default();
-        let invoke = client
-            .post(format!("http://{}/invoke", self.node.address()))
-            .content_type("application/json")
-            .send_json(&data)
-            .await;
-
-        if invoke.is_err() {
-            return Err(InvokeError::Unknown);
-        } else {
-            let mut invoke = invoke.unwrap();
-            if invoke.status().is_success() {
-                match invoke.body().await {
-                    Ok(body) => Ok(body),
-                    Err(_) => Err(InvokeError::Unknown),
-                }
-            } else {
-                Err(InvokeError::Unknown)
-            }
-        }
-    }
-}
-
 /// Struct that represents the Neighbor Nodes
 /// available in the system.
 #[derive(Clone)]
 pub struct NeighborNodeList {
     /// List of nodes
-    pub nodes: Vec<RemoteNode>,
+    pub nodes: Vec<NeighborNodeType>,
     /// Strategy to calculate the nearest node
     strategy: NeighborNodeStrategy,
     /// Emergency Position and Radius
@@ -185,15 +163,15 @@ impl NeighborNodeList {
         match self.strategy {
             NeighborNodeStrategy::GeoDistance => {
                 self.nodes
-                    .push(RemoteNode::new(NeighborNodeType::Distance(Box::new(
+                    .push(NeighborNodeType::Distance(Box::new(
                         geo_distance::GeoDistance::new(position, address),
-                    ))));
+                    )));
             }
             NeighborNodeStrategy::SimpleCellular => {
                 self.nodes
-                    .push(RemoteNode::new(NeighborNodeType::Latency(Box::new(
+                    .push(NeighborNodeType::Latency(Box::new(
                         simple_cellular::SimpleCellular::new(position, address),
-                    ))));
+                    )));
             }
         }
     }
@@ -204,8 +182,8 @@ impl NeighborNodeList {
     /// * 'radius' - Radius of the emergency in meters
     pub fn set_emergency(&mut self, em_pos: Emergency) {
         for node in self.nodes.iter_mut() {
-            if em_pos.distance(&mut **&mut node.as_neighbor_node()) <= em_pos.radius {
-                node.as_neighbor_node().set_emergency(true);
+            if em_pos.distance(node) <= em_pos.radius {
+                node.set_emergency(true);
             }
         }
         self.emergency = Some(em_pos);
@@ -215,7 +193,7 @@ impl NeighborNodeList {
     pub fn clear_emergency(&mut self) {
         self.emergency = None;
         for node in self.nodes.iter_mut() {
-            node.as_neighbor_node().set_emergency(false);
+            node.set_emergency(false);
         }
     }
 
@@ -226,10 +204,10 @@ impl NeighborNodeList {
     /// # Returns
     /// * The closest node if it exists
     /// * None if the list is empty
-    pub fn get_nth(&self, nth: usize) -> Option<RemoteNode> {
+    pub fn get_nth(&self, nth: usize) -> Option<NeighborNodeType> {
         let mut count = 0;
         for node in self.nodes.iter() {
-            if !node.reveal().emergency() {
+            if !node.emergency() {
                 if count == nth {
                     return Some(node.clone());
                 }
@@ -272,7 +250,7 @@ impl NeighborNodeList {
             .nodes
             .iter_mut()
             .enumerate()
-            .map(|(i, node)| match node.reveal_mut() {
+            .map(|(i, node)| match node {
                 NeighborNodeType::Latency(node) => (node.latency(current), i),
                 _ => panic!("Node is not a latency node"),
             })
@@ -290,12 +268,12 @@ impl NeighborNodeList {
     /// # Arguments
     /// * `current` - Current node
     pub fn sort_by_distance(&mut self, current: &mut dyn NeighborNode) {
-        self.nodes.sort_by(|a: &RemoteNode, b: &RemoteNode| {
-            let distance_a = match a.reveal() {
+        self.nodes.sort_by(|a, b| {
+            let distance_a = match a {
                 NeighborNodeType::Distance(node) => node.distance(current),
                 _ => panic!("Node is not a distance node"),
             };
-            let distance_b = match b.reveal() {
+            let distance_b = match b {
                 NeighborNodeType::Distance(node) => node.distance(current),
                 _ => panic!("Node is not a distance node"),
             };
@@ -331,7 +309,7 @@ mod tests {
         assert_eq!(
             list.nodes
                 .iter_mut()
-                .filter(|node| node.reveal().emergency())
+                .filter(|node| node.emergency())
                 .count(),
             1
         );
@@ -352,7 +330,7 @@ mod tests {
         assert_eq!(
             list.nodes
                 .iter()
-                .filter(|node| node.reveal().emergency())
+                .filter(|node| node.emergency())
                 .count(),
             0
         );
@@ -370,7 +348,7 @@ mod tests {
             address: "current".to_string(),
             emergency: false,
         });
-        assert_eq!(list.nodes[0].reveal().address(), "node1");
+        assert_eq!(list.nodes[0].address(), "node1");
     }
 
     #[test]
@@ -389,7 +367,7 @@ mod tests {
         });
         for node in list.nodes.iter_mut() {
             // print latency
-            match node.reveal_mut() {
+            match node {
                 NeighborNodeType::Latency(node) => println!(
                     "Latency: {}",
                     node.latency(&mut simple_cellular::SimpleCellular {
@@ -403,6 +381,6 @@ mod tests {
                 _ => (),
             }
         }
-        assert_eq!(list.nodes[0].reveal().address(), "node1");
+        assert_eq!(list.nodes[0].address(), "node1");
     }
 }
