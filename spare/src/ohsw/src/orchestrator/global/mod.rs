@@ -226,12 +226,12 @@ impl NeighborNodeList {
     /// # Returns
     /// * The closest node if it exists
     /// * None if the list is empty
-    pub fn get_nth(&mut self, nth: usize) -> Option<&mut RemoteNode> {
+    pub fn get_nth(&self, nth: usize) -> Option<RemoteNode> {
         let mut count = 0;
-        for node in self.nodes.iter_mut() {
-            if !node.as_neighbor_node().emergency() {
+        for node in self.nodes.iter() {
+            if !node.reveal().emergency() {
                 if count == nth {
-                    return Some(node);
+                    return Some(node.clone());
                 }
                 count += 1;
             }

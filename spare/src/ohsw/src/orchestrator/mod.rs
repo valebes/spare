@@ -128,12 +128,28 @@ impl Orchestrator {
         res
     }
 
-    /// Get the nth node available in the system
-    pub fn get_remote_nth_node<'a>(
-        identity: &'a mut Node,
+    /// Given a node, find it in the list and return a mutable reference to it
+    pub fn contains<'a>(
+        &mut self,
+        node: &mut RemoteNode,
         node_list: &'a mut NeighborNodeList,
-        index: usize,
     ) -> Option<&'a mut RemoteNode> {
+        // Check if the node is in the list
+        for n in node_list.nodes.iter_mut() {
+            if n.reveal().address() == node.reveal().address() {
+                return Some(n);
+            }
+        }
+        None
+    }
+    
+    /// Get the nth node available in the system
+    pub fn get_remote_nth_node(
+        &self,
+        identity: &mut Node,
+        index: usize,
+    ) -> Option<RemoteNode> {
+        let mut node_list = self.global_resources.write().unwrap();
         // Check the strategy
         match node_list.strategy() {
             NeighborNodeStrategy::SimpleCellular => {
@@ -172,9 +188,6 @@ impl Orchestrator {
         data: web::Json<InvokeFunction>,
         req: HttpRequest,
     ) -> HttpResponse<BoxBody> {
-
-        let mut global_resources = self.global_resources.write().unwrap();
-
         let cpus = data.vcpus;
         let memory = data.memory;
 
@@ -182,9 +195,8 @@ impl Orchestrator {
         warn!("Function must be offloaded");
         for i in 0..self.number_of_nodes() {
             warn!("Checking node: {}", i);
-            match Orchestrator::get_remote_nth_node(
+            match self.get_remote_nth_node(
                 &mut self.identity.clone(),
-                &mut global_resources, // Todo 
                 i,
             ) {
                 Some(node) => {
