@@ -13,7 +13,7 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use actix_web::{middleware, web::Data, App, HttpServer};
+use actix_web::{middleware, web::{Data, JsonConfig}, App, HttpServer};
 use clap::{arg, command, Parser};
 use local_ip_address::local_ip;
 use log::{error, info};
@@ -271,7 +271,7 @@ async fn main() -> std::io::Result<()> {
     let server = HttpServer::new(move || {
         App::new()
             .wrap(middleware::Compress::default()) // Create option to enable or disable gzip compression
-            .data(web::JsonConfig::default().limit(1024 * 1024 * 50))
+            .app_data(JsonConfig::default().limit(1024 * 1024 * 50))
             .app_data(Data::new(pool_clone.clone()))
             .app_data(builder.clone())
             .app_data(Data::new(orchestrator.clone()))
