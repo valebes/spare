@@ -308,7 +308,11 @@ async fn test(
 
             sleep(Duration::from_millis(55)).await; // Inter-arrival time
             let handle = tokio::spawn(async move {
-                let web_client = reqwest::Client::new();
+                let web_client = reqwest::Client::builder()
+                .deflate(true)
+                .gzip(true)
+                    .build()
+                    .unwrap();
 
                 let invoke_function = InvokeFunction {
                     function: "mandelbrot".to_string(), // Function name (This is hardcoded for now)
@@ -328,7 +332,6 @@ async fn test(
                             Url::from_str(&format!("http://{}/invoke", address).as_str()).unwrap(),
                         )
                         .json(&invoke_function)
-                        .timeout(Duration::from_millis(5000)) // Timeout after 5 seconds
                         .send()
                         .await;
 
