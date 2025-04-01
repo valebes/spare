@@ -1,17 +1,6 @@
 //! SPARE Serverless Platform
 //! SPARE is a serverless platform that aims to provide a scalable and efficient serverless platform for edge computing.
 //! The code provided here is a prototype of the SPARE platform.
-
-use std::{
-    env,
-    fs::File,
-    io::Write,
-    net::Ipv4Addr,
-    path::Path,
-    str::FromStr,
-    sync::{Arc, Mutex, RwLock},
-};
-
 use actix_web::{
     middleware,
     web::{Data, JsonConfig},
@@ -35,6 +24,16 @@ use ohsw::{
     },
 };
 use sqlx::{sqlite, Pool};
+use std::{
+    env,
+    fs::File,
+    io::Write,
+    net::Ipv4Addr,
+    path::Path,
+    str::FromStr,
+    sync::{Arc, Mutex},
+};
+use tokio::sync::RwLock;
 
 // Struct that represents the supported arguments for the executable
 #[derive(Parser, Debug)]

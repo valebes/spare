@@ -162,16 +162,14 @@ impl NeighborNodeList {
     pub fn add_node(&mut self, address: String, position: (f64, f64)) {
         match self.strategy {
             NeighborNodeStrategy::GeoDistance => {
-                self.nodes
-                    .push(NeighborNodeType::Distance(Box::new(
-                        geo_distance::GeoDistance::new(position, address),
-                    )));
+                self.nodes.push(NeighborNodeType::Distance(Box::new(
+                    geo_distance::GeoDistance::new(position, address),
+                )));
             }
             NeighborNodeStrategy::SimpleCellular => {
-                self.nodes
-                    .push(NeighborNodeType::Latency(Box::new(
-                        simple_cellular::SimpleCellular::new(position, address),
-                    )));
+                self.nodes.push(NeighborNodeType::Latency(Box::new(
+                    simple_cellular::SimpleCellular::new(position, address),
+                )));
             }
         }
     }
@@ -327,13 +325,7 @@ mod tests {
         };
         list.set_emergency(emergency);
         list.clear_emergency();
-        assert_eq!(
-            list.nodes
-                .iter()
-                .filter(|node| node.emergency())
-                .count(),
-            0
-        );
+        assert_eq!(list.nodes.iter().filter(|node| node.emergency()).count(), 0);
     }
 
     #[test]

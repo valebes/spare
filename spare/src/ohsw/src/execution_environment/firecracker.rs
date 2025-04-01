@@ -1,4 +1,4 @@
-use std::{net::Ipv4Addr, sync::Mutex};
+use std::net::Ipv4Addr;
 
 use crate::net::{
     addresses::Addresses,
@@ -12,6 +12,7 @@ use firepilot::{machine::FirepilotError, *};
 use firepilot_models::models::{BootSource, Drive, MachineConfiguration, NetworkInterface};
 use log::info;
 use machine::Machine;
+use tokio::sync::Mutex;
 
 /// Struct that acts as a builder for Firecracker instances.
 pub struct FirecrackerBuilder {
@@ -39,48 +40,40 @@ impl FirecrackerBuilder {
         vcpus: i32,
         memory: i32,
     ) -> Result<FirecrackerInstance, FirepilotError> {
-        let network = self.network.lock();
-        match network {
-            Ok(mut network) => {
-                let address = network.get();
-                match address {
-                    Some(ip) => {
-                        info!("Assigned IP address: {}", ip);
-                        let create_instance = FirecrackerInstance::new(
-                            self.executable.clone(),
-                            self.kernel.clone(),
-                            image,
-                            vcpus,
-                            memory,
-                            self.bridge.clone(),
-                            ip,
-                            network.get_gateway(),
-                            network.get_netmask(),
-                        )
-                        .await;
-                        match create_instance {
-                            Ok(instance) => {
-                                info!("Created instance with IP address: {}", ip);
-                                return Ok(instance);
-                            }
-                            Err(e) => {
-                                return Err(FirepilotError::Unknown(format!(
-                                    "Failed to create instance: {}",
-                                    e
-                                )))
-                            }
-                        }
+        let mut network = self.network.lock().await;
+
+        let address = network.get();
+        match address {
+            Some(ip) => {
+                info!("Assigned IP address: {}", ip);
+                let create_instance = FirecrackerInstance::new(
+                    self.executable.clone(),
+                    self.kernel.clone(),
+                    image,
+                    vcpus,
+                    memory,
+                    self.bridge.clone(),
+                    ip,
+                    network.get_gateway(),
+                    network.get_netmask(),
+                )
+                .await;
+                match create_instance {
+                    Ok(instance) => {
+                        info!("Created instance with IP address: {}", ip);
+                        return Ok(instance);
                     }
-                    None => {
-                        return Err(FirepilotError::Unknown(
-                            "No more addresses available".to_string(),
-                        ))
+                    Err(e) => {
+                        return Err(FirepilotError::Unknown(format!(
+                            "Failed to create instance: {}",
+                            e
+                        )))
                     }
                 }
             }
-            Err(_) => {
+            None => {
                 return Err(FirepilotError::Unknown(
-                    "Failed to lock network".to_string(),
+                    "No more addresses available".to_string(),
                 ))
             }
         }

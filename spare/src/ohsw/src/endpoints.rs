@@ -1,9 +1,4 @@
-use std::{
-    io,
-    os::fd::AsRawFd,
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::{io, os::fd::AsRawFd, sync::Arc, time::Duration};
 
 use actix_web::{
     get, post,
@@ -14,6 +9,7 @@ use actix_web::{
 use awc::{error::PayloadError, Client};
 use log::{error, info, warn};
 use sqlx::{sqlite, Pool};
+use tokio::sync::RwLock;
 
 use crate::{
     api::{invoke::InvokeFunction, payload::Payload},
@@ -154,7 +150,7 @@ async fn start_instance(
         6) Return response
         7) Delete instance
     */
-    let builder = firecracker_builder.read().unwrap(); // TODO: Remove lock
+    let builder = firecracker_builder.read().await; // TODO: Remove lock
 
     // Create new instance
     let fc_instance = builder
@@ -198,7 +194,7 @@ async fn start_instance(
                 builder
                     .network
                     .lock()
-                    .unwrap()
+                    .await
                     .release(fc_instance.get_address());
                 return Err(InstanceError::VSockCreation);
             }
@@ -216,7 +212,7 @@ async fn start_instance(
                     builder
                         .network
                         .lock()
-                        .unwrap()
+                        .await
                         .release(fc_instance.get_address());
                     return Err(InstanceError::InstanceStart);
                 }
@@ -234,7 +230,7 @@ async fn start_instance(
                     builder
                         .network
                         .lock()
-                        .unwrap()
+                        .await
                         .release(fc_instance.get_address());
                     return Err(InstanceError::VSock);
                 }
@@ -252,7 +248,7 @@ async fn start_instance(
                     builder
                         .network
                         .lock()
-                        .unwrap()
+                        .await
                         .release(fc_instance.get_address());
                     return Err(InstanceError::VSockTimeout);
                 }
@@ -266,7 +262,7 @@ async fn start_instance(
                         builder
                             .network
                             .lock()
-                            .unwrap()
+                            .await
                             .release(fc_instance.get_address());
                         return Err(InstanceError::VSock);
                     }
@@ -292,7 +288,7 @@ async fn start_instance(
                         builder
                             .network
                             .lock()
-                            .unwrap()
+                            .await
                             .release(fc_instance.get_address());
                         return Err(InstanceError::VSock);
                     }
@@ -314,7 +310,7 @@ async fn start_instance(
                     builder
                         .network
                         .lock()
-                        .unwrap()
+                        .await
                         .release(fc_instance.get_address());
                     return Err(InstanceError::VSock);
                 }
@@ -334,7 +330,7 @@ async fn start_instance(
                     builder
                         .network
                         .lock()
-                        .unwrap()
+                        .await
                         .release(fc_instance.get_address());
                     return Err(InstanceError::ApplicationNotInitialized);
                 }
@@ -372,7 +368,7 @@ async fn start_instance(
             builder
                 .network
                 .lock()
-                .unwrap()
+                .await
                 .release(fc_instance.get_address());
 
             let _ = fc_instance.stop().await;
@@ -516,7 +512,7 @@ mod test {
                     builder
                         .network
                         .lock()
-                        .unwrap()
+                        .await
                         .release(fc_instance.get_address());
                     let _ = fc_instance.delete().await;
                 }

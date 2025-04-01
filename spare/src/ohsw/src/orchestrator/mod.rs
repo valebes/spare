@@ -116,11 +116,7 @@ impl Orchestrator {
     pub fn number_of_nodes(&self) -> usize {
         let lock = self.global_resources.read().unwrap();
         // Count the number of nodes that are not in emergency mode
-        let res = lock
-            .nodes
-            .iter()
-            .filter(|node| !node.emergency())
-            .count();
+        let res = lock.nodes.iter().filter(|node| !node.emergency()).count();
         info!(
             "Total Number of Nodes: {}, Nodes Available: {}",
             lock.nodes.len(),
@@ -145,7 +141,11 @@ impl Orchestrator {
     }
 
     /// Get the nth node available in the system
-    pub fn get_remote_nth_node(&self, identity: &mut Node, index: usize) -> Option<NeighborNodeType> {
+    pub fn get_remote_nth_node(
+        &self,
+        identity: &mut Node,
+        index: usize,
+    ) -> Option<NeighborNodeType> {
         let mut node_list = self.global_resources.write().unwrap();
         // Check the strategy
         match node_list.strategy() {

@@ -10,15 +10,15 @@ struct EdgeNode {
     cell_lon: f64,
 }
 
-pub fn generate_points_from_csv(nodes: &mut Vec<Node>, file_path: &str) {
+pub fn generate_points_from_csv(nodes: &mut [Node], file_path: &str) {
     let mut rdr = csv::Reader::from_path(file_path).unwrap();
     let mut edge_nodes: Vec<EdgeNode> = rdr.deserialize().map(|result| result.unwrap()).collect();
 
     let mut rng = rng();
-    for i in 0..nodes.len() {
+    (0..nodes.len()).for_each(|i| {
         let edge_node = edge_nodes.remove(rng.random_range(0..edge_nodes.len()));
         nodes[i].position = (edge_node.cell_lat, edge_node.cell_lon);
-    }
+    });
 }
 
 // Test the generation of points from a CSV file
