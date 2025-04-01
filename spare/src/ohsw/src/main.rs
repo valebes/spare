@@ -33,7 +33,6 @@ use std::{
     str::FromStr,
     sync::{Arc, Mutex},
 };
-use tokio::sync::RwLock;
 
 // Struct that represents the supported arguments for the executable
 #[derive(Parser, Debug)]
@@ -279,7 +278,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Compress::default()) // Create option to enable or disable gzip compression
             .app_data(JsonConfig::default().limit(1024 * 1024 * 50))
             .app_data(Data::new(pool_clone.clone()))
-            .app_data(builder.clone())
+            .app_data(Data::new(builder.clone()))
             .app_data(Data::new(orchestrator.clone()))
             .service(index)
             .service(list)
