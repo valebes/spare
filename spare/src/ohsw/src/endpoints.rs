@@ -178,6 +178,8 @@ async fn start_instance(
                 }
             }
 
+            sleep(Duration::from_millis(150)).await;
+
             info!("Created new function instance: {}", instance.id);
 
             // Make sure the vsock socket is ready
@@ -230,7 +232,7 @@ async fn start_instance(
             info!("Starting instance: {} ip: {}", instance.id, instance.ip);
             
             
-            let stream = match timeout(Duration::from_millis(1000), socket.accept()).await {
+            let stream = match timeout(Duration::from_millis(100), socket.accept()).await {
                 Ok(res) => {
                     match res {
                         Ok((stream, _)) => stream,
