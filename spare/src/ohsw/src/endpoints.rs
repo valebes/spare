@@ -1,4 +1,4 @@
-use std::{io, os::fd::AsRawFd, sync::{Arc, RwLock}, time::Duration};
+use std::{io, os::fd::AsRawFd, sync::Arc, time::Duration};
 
 use actix_web::{
     get, post,
@@ -70,7 +70,7 @@ Example API: curl --header "Content-Type: application/json" \
 async fn invoke(
     data: web::Json<InvokeFunction>,
     db_pool: web::Data<Pool<sqlite::Sqlite>>,
-    firecracker_builder: web::Data<FirecrackerBuilder>,
+    firecracker_builder: web::Data<Arc<FirecrackerBuilder>>,
     orchestrator: web::Data<Arc<orchestrator::Orchestrator>>,
     req: HttpRequest,
 ) -> impl Responder {
@@ -135,7 +135,7 @@ async fn invoke(
 
 /// Method to start a new instance on the node
 async fn start_instance(
-    firecracker_builder: &web::Data<FirecrackerBuilder>,
+    firecracker_builder: &web::Data<Arc<FirecrackerBuilder>>,
     db_pool: &Pool<sqlite::Sqlite>,
     data: &web::Json<InvokeFunction>,
 ) -> Result<Result<Bytes, PayloadError>, InstanceError> {
@@ -279,7 +279,7 @@ async fn start_instance(
                         // If the stream is not ready, continue
                         continue;
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         // If an error occurs, delete the instance and set 'failed' status
                         instance.set_status("failed".to_string());
                         let _ = instance.update(&db_pool).await;
