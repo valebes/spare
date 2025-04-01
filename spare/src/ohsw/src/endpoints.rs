@@ -198,7 +198,7 @@ async fn start_instance(
                 return Err(InstanceError::VSockCreation);
             }
             let socket = socket.unwrap();
-            info!("Socket created: {}", socket.as_raw_fd());
+            info!("Socket created: {}, for instance {}", socket.as_raw_fd(), instance.id);
 
             // Start instance
             match fc_instance.start().await {
@@ -235,7 +235,7 @@ async fn start_instance(
                 }
             };
 
-            info!("Socket accepted: {}", stream.as_raw_fd());
+            info!("Socket accepted: {}, for instance {}", stream.as_raw_fd(), instance.id);
 
             let mut buf = [0; 1024];
             let max_retries = 100;
@@ -268,7 +268,7 @@ async fn start_instance(
                         return Err(InstanceError::VSock);
                     }
                 };
-                info!("Socket readable: {}", stream.as_raw_fd());
+                info!("Socket readable: {}, for instance {}", stream.as_raw_fd(), instance.id);
                 match stream.try_read(&mut buf.as_mut()) {
                     Ok(0) => break,
                     Ok(n) => {
@@ -299,7 +299,7 @@ async fn start_instance(
 
             let message: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buf);
 
-            info!("Received message: {}", message);
+            info!("Received message: {}, for instance {}", message, instance.id);
 
             // Check if the instance is ready through the vsock socket
             match message.contains("ready") {
