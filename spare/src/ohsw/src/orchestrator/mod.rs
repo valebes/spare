@@ -22,6 +22,7 @@ pub enum InvokeError {
 /// Error returned by the orchestrator
 pub enum OrchestratorError {
     InsufficientResources,
+    CannotAcquireResources,
 }
 
 /// Orchestrator. It is responsible for managing the local resources and monitoring the remote nodes
@@ -271,7 +272,13 @@ impl Orchestrator {
         memory: usize,
     ) -> Result<(), OrchestratorError> {
         info!("Requested {} cpus and {} MB", cpus, memory / 1024);
-        let mut current_resources = self.resources.lock().unwrap();
+        let mut current_resources = match self.resources.lock() {
+            Ok(resources) => resources,
+            Err(_) => {
+                error!("Cannot acquire resources");
+                return Err(OrchestratorError::CannotAcquireResources);
+            }
+        };
 
         if cpus > current_resources.get_available_cpus() {
             warn!(

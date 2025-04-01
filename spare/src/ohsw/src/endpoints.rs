@@ -11,15 +11,15 @@ use actix_web::{
     web::{self, Bytes},
     HttpRequest, HttpResponse, Responder,
 };
-use awc::{body::BoxBody, error::PayloadError, Client};
+use awc::{error::PayloadError, Client};
 use log::{error, info, warn};
 use sqlx::{sqlite, Pool};
 
 use crate::{
-    api::{self, invoke::InvokeFunction, payload::Payload},
+    api::{invoke::InvokeFunction, payload::Payload},
     db::{self, models::Instance},
     execution_environment::firecracker::FirecrackerBuilder,
-    orchestrator::{self, global::NeighborNode},
+    orchestrator::{self},
 };
 
 /// Error types for the instance
@@ -60,6 +60,82 @@ async fn resources(orchestrator: web::Data<Arc<orchestrator::Orchestrator>>) -> 
 async fn emergency(orchestrator: web::Data<Arc<orchestrator::Orchestrator>>) -> impl Responder {
     let in_emergency = orchestrator.in_emergency_area();
     HttpResponse::Ok().json(in_emergency)
+}
+
+/*
+Example API: curl --header "Content-Type: application/json" \
+     --request POST \
+     --data '{"function":"mandelbrot","image":"/home/ubuntu/.ops/images/nanosvm","vcpus":8,"memory":256, "payload": "test"}' \
+     http://localhost:8085/invoke
+
+*/
+/// Invoke function endpoint
+/// This endpoint is used to invoke a registered function in the system
+#[post("/invoke")]
+async fn invoke(
+    data: web::Json<InvokeFunction>,
+    db_pool: web::Data<Pool<sqlite::Sqlite>>,
+    firecracker_builder: web::Data<RwLock<FirecrackerBuilder>>,
+    orchestrator: web::Data<Arc<orchestrator::Orchestrator>>,
+    req: HttpRequest,
+) -> impl Responder {
+    // Only for debug
+    if data.hops > 0 {
+        warn!("Request with number of hops: {:?}", data.hops);
+    }
+    if data.hops > 10 {
+        // TODO: Find a better way
+        return HttpResponse::InternalServerError().body("Too many hops\n");
+    }
+
+    // Check and acquire resources
+    let _resources = orchestrator.check_and_acquire_resources(
+        data.vcpus.try_into().unwrap(),
+        (data.memory * 1024).try_into().unwrap(),
+    );
+
+    // EMERGENCY MANAGEMENT
+    // If no resources are available, offload the request
+    // If in emergency mode, but the request is not in emergency, offload the request
+    if _resources.is_err() || (orchestrator.in_emergency_area() && !data.emergency) {
+        if _resources.is_ok() {
+            let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
+        }
+        let body = orchestrator.offload(data, req).await;
+        return body;
+    }
+
+    // Start instance
+    let max_retries = 5;
+    let mut retries = 0;
+    loop {
+        if retries > max_retries {
+            // If an error occurs, release resources and return error
+            let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
+            return HttpResponse::InternalServerError().body("Failed to start instance\n");
+        }
+        match start_instance(&firecracker_builder, &db_pool, &data).await {
+            Ok(body) => {
+                match body {
+                    Ok(body) => {
+                        // Release resources
+                        let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
+                        return HttpResponse::Ok().body(body);
+                    }
+                    Err(e) => {
+                        // If an error occurs, release resources and return error
+                        let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
+                        return HttpResponse::InternalServerError()
+                            .body(format!("Failed to start instance: {:?}", e));
+                    }
+                }
+            }
+            Err(e) => {
+                error!("Error!: {:?}", e);
+            }
+        };
+        retries += 1;
+    }
 }
 
 /// Method to start a new instance on the node
@@ -148,20 +224,21 @@ async fn start_instance(
 
             info!("Starting instance: {} ip: {}", instance.id, instance.ip);
 
-            let stream = socket.accept().await;
-            if stream.is_err() {
-                // If an error occurs, delete the instance and set 'failed' status
-                instance.set_status("failed".to_string());
-                let _ = instance.update(&db_pool).await;
-                let _ = fc_instance.delete().await;
-                builder
-                    .network
-                    .lock()
-                    .unwrap()
-                    .release(fc_instance.get_address());
-                return Err(InstanceError::VSock);
-            }
-            let stream = stream.unwrap();
+            let stream = match socket.accept().await {
+                Ok((stream, _)) => stream,
+                Err(_) => {
+                    // If an error occurs, delete the instance and set 'failed' status
+                    instance.set_status("failed".to_string());
+                    let _ = instance.update(&db_pool).await;
+                    let _ = fc_instance.delete().await;
+                    builder
+                        .network
+                        .lock()
+                        .unwrap()
+                        .release(fc_instance.get_address());
+                    return Err(InstanceError::VSock);
+                }
+            };
 
             let mut buf = [0; 1024];
             let max_retries = 100;
@@ -179,7 +256,7 @@ async fn start_instance(
                         .release(fc_instance.get_address());
                     return Err(InstanceError::VSockTimeout);
                 }
-                match stream.0.readable().await {
+                match stream.readable().await {
                     Ok(_) => {}
                     Err(_) => {
                         // If an error occurs, delete the instance and set 'failed' status
@@ -194,7 +271,7 @@ async fn start_instance(
                         return Err(InstanceError::VSock);
                     }
                 };
-                match stream.0.try_read(&mut buf.as_mut()) {
+                match stream.try_read(&mut buf.as_mut()) {
                     Ok(0) => break,
                     Ok(n) => {
                         if n == 5 {
@@ -265,7 +342,6 @@ async fn start_instance(
                 // Check payload, if empty do a get
                 // Otherwise, create a Payload object
                 // and do a post
-
                 if data.payload.is_none() {
                     res = client
                         .get(format!("http://{}:{}", instance.ip, instance.port))
@@ -310,82 +386,6 @@ async fn start_instance(
             error!("Failed to create instance: {:?}", e);
             return Err(InstanceError::InstanceCreation);
         }
-    }
-}
-
-/*
-Example API: curl --header "Content-Type: application/json" \
-     --request POST \
-     --data '{"function":"mandelbrot","image":"/home/ubuntu/.ops/images/nanosvm","vcpus":8,"memory":256, "payload": "test"}' \
-     http://localhost:8085/invoke
-
-*/
-/// Invoke function endpoint
-/// This endpoint is used to invoke a registered function in the system
-#[post("/invoke")]
-async fn invoke(
-    data: web::Json<InvokeFunction>,
-    db_pool: web::Data<Pool<sqlite::Sqlite>>,
-    firecracker_builder: web::Data<RwLock<FirecrackerBuilder>>,
-    orchestrator: web::Data<Arc<orchestrator::Orchestrator>>,
-    req: HttpRequest,
-) -> impl Responder {
-    // Only for debug
-    if data.hops > 0 {
-        warn!("Request with number of hops: {:?}", data.hops);
-    }
-    if data.hops > 10 as i32 {
-        // TODO: Find a better way
-        return HttpResponse::InternalServerError().body("Too many hops\n");
-    }
-
-    // Check and acquire resources
-    let _resources = orchestrator.check_and_acquire_resources(
-        data.vcpus.try_into().unwrap(),
-        (data.memory * 1024).try_into().unwrap(),
-    );
-
-    // EMERGENCY MANAGEMENT
-    // If no resources are available, offload the request
-    // If in emergency mode, but the request is not in emergency, offload the request
-    if _resources.is_err() || (orchestrator.in_emergency_area() && !data.emergency) {
-        if _resources.is_ok() {
-            let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
-        }
-        let body = orchestrator.offload(data, req).await;
-        return body;
-    }
-
-    // Start instance
-    let max_retries = 10;
-    let mut retries = 0;
-    loop {
-        if retries > max_retries {
-            // If an error occurs, release resources and return error
-            let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
-            return HttpResponse::InternalServerError().body("Failed to start instance\n");
-        }
-        match start_instance(&firecracker_builder, &db_pool, &data).await {
-            Ok(body) => {
-                match body {
-                    Ok(body) => {
-                        // Release resources
-                        let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
-                        return HttpResponse::Ok().body(body);
-                    }
-                    Err(e) => {
-                        // If an error occurs, release resources and return error
-                        let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
-                        return HttpResponse::InternalServerError()
-                            .body(format!("Failed to start instance: {:?}", e));
-                    }
-                }
-            }
-            Err(e) => {
-                error!("Error!: {:?}", e);
-            }
-        };
-        retries += 1;
     }
 }
 
