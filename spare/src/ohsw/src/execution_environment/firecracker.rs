@@ -1,4 +1,4 @@
-use std::net::Ipv4Addr;
+use std::{net::Ipv4Addr, sync::Mutex};
 
 use crate::net::{
     addresses::Addresses,
@@ -12,7 +12,6 @@ use firepilot::{machine::FirepilotError, *};
 use firepilot_models::models::{BootSource, Drive, MachineConfiguration, NetworkInterface};
 use log::info;
 use machine::Machine;
-use tokio::sync::Mutex;
 
 /// Struct that acts as a builder for Firecracker instances.
 pub struct FirecrackerBuilder {
@@ -40,7 +39,17 @@ impl FirecrackerBuilder {
         vcpus: i32,
         memory: i32,
     ) -> Result<FirecrackerInstance, FirepilotError> {
-        let mut network = self.network.lock().await;
+        let mut network = {
+            match  self.network.lock() {
+                Ok(network) => network,
+                Err(e) => {
+                    return Err(FirepilotError::Unknown(format!(
+                        "Failed to lock network: {}",
+                        e
+                    )))
+                }
+            }
+        };
 
         let address = network.get();
         match address {
