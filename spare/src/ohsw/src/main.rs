@@ -287,6 +287,7 @@ async fn main() -> std::io::Result<()> {
             .service(emergency)
     })
     .bind(("0.0.0.0", 8085))?
+    .keep_alive(None)
     .disable_signals()
     .run();
 
