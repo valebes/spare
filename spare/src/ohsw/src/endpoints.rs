@@ -235,6 +235,8 @@ async fn start_instance(
                 }
             };
 
+            info!("Socket accepted: {}", stream.as_raw_fd());
+
             let mut buf = [0; 1024];
             let max_retries = 100;
             let mut retries = 0;
@@ -266,6 +268,7 @@ async fn start_instance(
                         return Err(InstanceError::VSock);
                     }
                 };
+                info!("Socket readable: {}", stream.as_raw_fd());
                 match stream.try_read(&mut buf.as_mut()) {
                     Ok(0) => break,
                     Ok(n) => {
