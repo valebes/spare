@@ -2,7 +2,7 @@ use std::{io, os::fd::AsRawFd, path::Path, sync::Arc, time::Duration};
 
 use actix_web::{
     get, post,
-    rt::{net::UnixListener, time::sleep},
+    rt::{net::UnixListener, time::{sleep, timeout}},
     web::{self, Bytes},
     HttpRequest, HttpResponse, Responder,
 };
@@ -182,6 +182,7 @@ async fn start_instance(
 
             // Make sure the vsock socket is ready
             let mut path = fc_instance.get_vsock_path();
+            
             // CHeck if the vsock file exists, if not wait in a loop
             loop {
                 if Path::new(&path).exists() {
@@ -227,9 +228,26 @@ async fn start_instance(
             }
 
             info!("Starting instance: {} ip: {}", instance.id, instance.ip);
-
-            let stream = match socket.accept().await {
-                Ok((stream, _)) => stream,
+            
+            
+            let stream = match timeout(Duration::from_millis(1000), socket.accept()).await {
+                Ok(res) => {
+                    match res {
+                        Ok((stream, _)) => stream,
+                        Err(_) => {
+                            // If an error occurs, delete the instance and set 'failed' status
+                            instance.set_status("failed".to_string());
+                            let _ = instance.update(&db_pool).await;
+                            let _ = fc_instance.delete().await;
+                            builder
+                                .network
+                                .lock()
+                                .unwrap()
+                                .release(fc_instance.get_address());
+                            return Err(InstanceError::VSock);
+                        }
+                    }
+                },
                 Err(_) => {
                     // If an error occurs, delete the instance and set 'failed' status
                     instance.set_status("failed".to_string());
@@ -240,8 +258,8 @@ async fn start_instance(
                         .lock()
                         .unwrap()
                         .release(fc_instance.get_address());
-                    return Err(InstanceError::VSock);
-                }
+                    return Err(InstanceError::VSockTimeout);
+                },
             };
 
             info!("Socket accepted: {}, for instance {}", stream.as_raw_fd(), instance.id);
