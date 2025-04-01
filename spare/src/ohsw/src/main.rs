@@ -250,12 +250,12 @@ async fn main() -> std::io::Result<()> {
     .unwrap();
 
     // Create a new FirecrackerBuilder
-    let builder = Data::new(Arc::new(FirecrackerBuilder::new(
+    let builder = Arc::new(FirecrackerBuilder::new(
         executable,
         kernel,
         bridge,
         addresses.clone(),
-    )));
+    ));
 
     let pool_clone = pool.clone();
 

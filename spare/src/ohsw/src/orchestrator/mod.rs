@@ -1,7 +1,6 @@
 //! Orchestrator module. It is responsible for managing the local resources and monitoring the remote nodes
 pub mod global;
 mod local_resources;
-
 use std::sync::{Mutex, RwLock};
 
 use crate::api::{self, invoke::InvokeFunction, resources::Resources};
