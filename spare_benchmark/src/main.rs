@@ -378,7 +378,6 @@ async fn test(
 
         let end_time = chrono::Utc::now().naive_utc().to_string();
 
-        println!("Starting in 10 seconds");
         sleep(Duration::from_secs(5)).await;
 
         // Announce the end of an epoch
@@ -404,6 +403,14 @@ async fn test(
                 .iter()
                 .sum::<u128>()
                 / (request_per_epoch as u128),
+        );
+        println!(
+            "Epoch {} - Latency: {} ms",
+            i,
+            latency_per_epoch
+                .last()
+                .unwrap_or(&0)
+                .to_string()
         );
         sleep(Duration::from_secs(5)).await;
     }
