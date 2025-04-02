@@ -137,7 +137,7 @@ async fn test(
             let function_path_tmp = function_path.clone();
 
             let payload_clone = payload.clone();
-            sleep(Duration::from_millis(100)).await; // Inter-arrival time
+            sleep(Duration::from_millis(65)).await; // Inter-arrival time
             let handle = tokio::spawn(async move {
                 let web_client = reqwest::Client::builder()
                     .deflate(true)
@@ -161,7 +161,7 @@ async fn test(
                     let req: Result<reqwest::Response, reqwest::Error> = web_client
                         .post(
                             Url::from_str(&format!("http://{}/invoke", address).as_str()).unwrap(),
-                        )
+                        )ß
                         .json(&invoke_function)
                         .timeout(Duration::from_secs(60))
                         .send()
