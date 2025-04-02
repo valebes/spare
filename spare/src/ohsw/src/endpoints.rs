@@ -388,6 +388,8 @@ async fn start_instance(
                 if res.is_ok() {
                     break;
                 } else {
+                    /// Print error
+                    error!("Error: {:?}", res.unwrap_err());
                     // Retry after 10ms
                     sleep(Duration::from_millis(10)).await;
                     retries += 1;
