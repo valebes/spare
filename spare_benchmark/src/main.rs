@@ -332,6 +332,7 @@ async fn test(
                             Url::from_str(&format!("http://{}/invoke", address).as_str()).unwrap(),
                         )
                         .json(&invoke_function)
+                        .timeout(Duration::from_secs(5))
                         .send()
                         .await;
 
