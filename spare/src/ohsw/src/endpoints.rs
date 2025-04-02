@@ -345,6 +345,8 @@ async fn start_instance(
                 }
             }
 
+
+            info!("Instance is ready: {}", instance.id);
             // Forward request to instance
             let client = Client::default();
 
@@ -352,6 +354,7 @@ async fn start_instance(
             let mut retries = 0;
             let mut res;
             loop {
+                info!("Instance {}, retry: {}", instance.id, retries);
                 if retries > max_retries {
                     instance.set_status("failed".to_string());
                     let _ = instance.update(&db_pool).await;
