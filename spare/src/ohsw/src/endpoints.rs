@@ -28,6 +28,7 @@ pub enum InstanceError {
     VSockCreation,
     Database,
     Timeout,
+    HostUnreachable,
     Unknown,
 }
 
@@ -350,53 +351,95 @@ async fn start_instance(
             // Forward request to instance
             let client = Client::default();
 
-            let max_retries = 100;
-            let mut retries = 0;
-            let mut res;
-            loop {
-                info!("Instance {}, retry: {}", instance.id, retries);
-                if retries > max_retries {
-                    instance.set_status("failed".to_string());
-                    let _ = instance.update(&db_pool).await;
-                    let _ = fc_instance.delete().await;
-                    builder
-                        .network
-                        .lock()
-                        .unwrap()
-                        .release(fc_instance.get_address());
-                    return Err(InstanceError::ApplicationNotInitialized);
-                }
 
-                // Check payload, if empty do a get
-                // Otherwise, create a Payload object
-                // and do a post
-                if data.payload.is_none() {
-                    res = client
+            let max_retries = 5;
+            let mut retries = 0;
+            let mut res ;
+                loop {
+                    if retries > max_retries {
+                        // If an error occurs, delete the instance and set 'failed' status
+                        instance.set_status("failed".to_string());
+                        let _ = instance.update(&db_pool).await;
+                        let _ = fc_instance.delete().await;
+                        builder
+                            .network
+                            .lock()
+                            .unwrap()
+                            .release(fc_instance.get_address());
+                        return Err(InstanceError::Timeout);
+                    }
+                    
+                    if data.payload.is_none() {
+                        match  client
                         .get(format!("http://{}:{}", instance.ip, instance.port))
                         .send()
-                        .await;
-                } else {
-                    let payload = Payload {
-                        payload: data.payload.clone().unwrap(),
-                    };
-                    res = client
-                        .post(format!("http://{}:{}", instance.ip, instance.port))
-                        .send_json(&payload)
-                        .await;
+                        .await {
+                            Ok(result) => {
+                                res = result;
+                                break;
+                            },
+                            Err(e) => match e {
+                                awc::error::SendRequestError::Send(e) => {
+                                    error!("Error: {:?}", e);
+                                    retries += 1;
+                                    sleep(Duration::from_millis(10)).await;
+                                    continue;
+                                }
+                                _ => {
+                                    error!("Error: {:?}", e);
+                                    instance.set_status("failed".to_string());
+                                    let _ = instance.update(&db_pool).await;
+                                    let _ = fc_instance.delete().await;
+                                    builder
+                                        .network
+                                        .lock()
+                                        .unwrap()
+                                        .release(fc_instance.get_address());
+                                    return Err(InstanceError::HostUnreachable);
+                                }
+                            }
+                        };
+                    } else {
+                        let payload = Payload {
+                            payload: data.payload.clone().unwrap(),
+                        };
+                        match client
+                            .post(format!("http://{}:{}", instance.ip, instance.port))
+                            .send_json(&payload)
+                            .await {
+                                Ok(result) => {
+                                    res = result;
+                                    break;
+                                },
+                                Err(e) => {
+                                    match e {
+                                        awc::error::SendRequestError::Send(e) => {
+                                            error!("Error: {:?}", e);
+                                            retries += 1;
+                                            sleep(Duration::from_millis(10)).await;
+                                            continue;
+                                        }
+                                        _ => {
+                                            error!("Error: {:?}", e);
+                                            instance.set_status("failed".to_string());
+                                            let _ = instance.update(&db_pool).await;
+                                            let _ = fc_instance.delete().await;
+                                            builder
+                                                .network
+                                                .lock()
+                                                .unwrap()
+                                                .release(fc_instance.get_address());
+                                            return Err(InstanceError::HostUnreachable);
+                                        }
+                                    };
+                                },
+                            };
+                    }
                 }
+            
 
-                if res.is_ok() {
-                    break;
-                } else {
-                    /// Print error
-                    error!("Error: {:?}", res.unwrap_err());
-                    // Retry after 10ms
-                    sleep(Duration::from_millis(10)).await;
-                    retries += 1;
-                }
-            }
-
-            let body = res.unwrap().body().await;
+       
+            let body = res.body().await;
 
             let _ = fc_instance.stop().await;
             let _ = fc_instance.delete().await;
