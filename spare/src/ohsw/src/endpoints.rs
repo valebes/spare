@@ -318,10 +318,15 @@ async fn start_instance(
                 }
             }
 
+            /*
+                The problem here: The instance at this point is ready, but in some
+                rare cases, firecracker has not initialized the network yet, so
+                request to the instance may go in timeout.
+             */
+
             info!("Instance is ready: {}", instance.id);
             // Forward request to instance
             let client = Client::default();
-
             let max_retries = 5;
             let mut retries = 0;
             let mut res;
@@ -345,6 +350,12 @@ async fn start_instance(
                         Err(e) => match e {
                             awc::error::SendRequestError::Send(e) => {
                                 error!("Error in sending the request: {:?}", e);
+                                retries += 1;
+                                sleep(Duration::from_millis(10)).await;
+                                continue;
+                            },
+                            awc::error::SendRequestError::Connect(e) => {
+                                error!("Error in connecting to the instance: {:?}", e);
                                 retries += 1;
                                 sleep(Duration::from_millis(10)).await;
                                 continue;

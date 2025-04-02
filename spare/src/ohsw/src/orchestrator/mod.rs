@@ -1,7 +1,7 @@
 //! Orchestrator module. It is responsible for managing the local resources and monitoring the remote nodes
 pub mod global;
 mod local_resources;
-use std::sync::{Mutex, RwLock};
+use std::{sync::{Mutex, RwLock}, time::Duration};
 
 use crate::api::{self, invoke::InvokeFunction, resources::Resources};
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -205,6 +205,7 @@ impl Orchestrator {
                     let client = Client::default();
                     let response = client
                         .get(format!("http://{}/resources", node.address()))
+                        .timeout(Duration::from_secs(60)) // TODO: Make this configurable
                         .send()
                         .await;
                     if response.is_ok() {
