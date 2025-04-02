@@ -231,12 +231,12 @@ async fn start_instance(
             info!("Starting instance: {} ip: {}", instance.id, instance.ip);
             
             
-            let stream = match timeout(Duration::from_millis(100), socket.accept()).await {
+            let stream = match timeout(Duration::from_millis(250), socket.accept()).await {
                 Ok(res) => {
                     match res {
                         Ok((stream, _)) => stream,
                         Err(e) => {
-                            error!("Error accepting vsocket: {:?}", e);
+                            error!("Error accepting vsocket (stream): {:?}", e);
                             // If an error occurs, delete the instance and set 'failed' status
                             instance.set_status("failed".to_string());
                             let _ = instance.update(&db_pool).await;
@@ -250,8 +250,9 @@ async fn start_instance(
                         }
                     }
                 },
-                Err(_) => {
+                Err(e) => {
                     // If an error occurs, delete the instance and set 'failed' status
+                    error!("Error accepting vsocket (timeout): {:?}", e);
                     instance.set_status("failed".to_string());
                     let _ = instance.update(&db_pool).await;
                     let _ = fc_instance.delete().await;
