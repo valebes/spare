@@ -178,8 +178,6 @@ async fn start_instance(
                 }
             }
 
-            sleep(Duration::from_millis(150)).await;
-
             info!("Created new function instance: {}", instance.id);
 
             // Make sure the vsock socket is ready
@@ -301,7 +299,7 @@ async fn start_instance(
                 match stream.try_read(&mut buf.as_mut()) {
                     Ok(0) => break,
                     Ok(n) => {
-                        if n == 5 {
+                        if n >= 5 {
                             break;
                         }
                     }
