@@ -148,7 +148,7 @@ async fn test(
                 let invoke_function = InvokeFunction {
                     function: "test".to_string(), // Function name (This is hardcoded for now)
                     image: function_path_tmp,
-                    vcpus: 2,
+                    vcpus: 1,
                     memory: 256,
                     payload: payload_clone,
                     emergency: false,
