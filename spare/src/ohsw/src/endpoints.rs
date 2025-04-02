@@ -295,7 +295,8 @@ async fn start_instance(
                         // If the stream is not ready, continue
                         continue;
                     }
-                    Err(_e) => {
+                    Err(e) => {
+                        error!("Error reading from vsocket: {}", e);
                         emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                         return Err(InstanceError::VSock);
                     }
