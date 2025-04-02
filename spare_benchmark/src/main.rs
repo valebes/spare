@@ -384,7 +384,7 @@ async fn main() {
     start_emergency(&client, emergency).await.unwrap();
 
     // Wait for nodes to be ready
-    sleep(Duration::from_secs(5)).await;
+    sleep(Duration::from_secs(10)).await;
 
     let (avg_emergency_latency, completed_emergency, failed_emergency, latency_per_epoch_emergency) =
         test(&client, iterations, nodes.clone(), &function_path, &payload).await;
