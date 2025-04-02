@@ -137,7 +137,7 @@ async fn test(
             let function_path_tmp = function_path.clone();
 
             let payload_clone = payload.clone();
-            sleep(Duration::from_millis(30)).await; // Inter-arrival time
+            sleep(Duration::from_millis(100)).await; // Inter-arrival time
             let handle = tokio::spawn(async move {
                 let web_client = reqwest::Client::builder()
                     .deflate(true)
