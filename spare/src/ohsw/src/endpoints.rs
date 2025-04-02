@@ -127,7 +127,7 @@ async fn invoke(
                 }
             }
             Err(e) => {
-                error!("Error!: {:?}", e);
+                error!("Error in starting execution environment: {:?}", e);
             }
         };
         retries += 1;
