@@ -2,7 +2,10 @@ use std::{io, os::fd::AsRawFd, path::Path, sync::Arc, time::Duration};
 
 use actix_web::{
     get, post,
-    rt::{net::UnixListener, time::{sleep, timeout}},
+    rt::{
+        net::UnixListener,
+        time::{sleep, timeout},
+    },
     web::{self, Bytes},
     HttpRequest, HttpResponse, Responder,
 };
@@ -134,7 +137,12 @@ async fn invoke(
     }
 }
 
-async fn emergency_cleanup(db_pool: &Pool<sqlite::Sqlite>, instance: &mut Instance, fc_instance: &mut FirecrackerInstance, builder: &web::Data<Arc<FirecrackerBuilder>>) {
+async fn emergency_cleanup(
+    db_pool: &Pool<sqlite::Sqlite>,
+    instance: &mut Instance,
+    fc_instance: &mut FirecrackerInstance,
+    builder: &web::Data<Arc<FirecrackerBuilder>>,
+) {
     instance.set_status("failed".to_string());
     let _ = instance.update(&db_pool).await;
     let _ = fc_instance.delete().await;
@@ -195,7 +203,7 @@ async fn start_instance(
 
             // Make sure the vsock socket is ready
             let mut path = fc_instance.get_vsock_path();
-            
+
             // Check if the vsock file exists, if not wait in a loop
             loop {
                 if Path::new(&path).exists() {
@@ -204,7 +212,7 @@ async fn start_instance(
                 sleep(Duration::from_millis(10)).await;
                 info!("Waiting for vsock socket to be ready: {}", path);
             }
-            
+
             path.push_str("_1234");
             let socket = UnixListener::bind(path);
 
@@ -213,7 +221,11 @@ async fn start_instance(
                 return Err(InstanceError::VSockCreation);
             }
             let socket = socket.unwrap();
-            info!("Socket created: {}, for instance {}", socket.as_raw_fd(), instance.id);
+            info!(
+                "Socket created: {}, for instance {}",
+                socket.as_raw_fd(),
+                instance.id
+            );
 
             // Start instance
             match fc_instance.start().await {
@@ -226,17 +238,14 @@ async fn start_instance(
             }
 
             info!("Starting instance: {} ip: {}", instance.id, instance.ip);
-            
-            
+
             let stream = match timeout(Duration::from_millis(250), socket.accept()).await {
-                Ok(res) => {
-                    match res {
-                        Ok((stream, _)) => stream,
-                        Err(e) => {
-                            error!("Error accepting vsocket (stream): {:?}", e);
-                            emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
-                            return Err(InstanceError::VSock);
-                        }
+                Ok(res) => match res {
+                    Ok((stream, _)) => stream,
+                    Err(e) => {
+                        error!("Error accepting vsocket (stream): {:?}", e);
+                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
+                        return Err(InstanceError::VSock);
                     }
                 },
                 Err(e) => {
@@ -244,10 +253,14 @@ async fn start_instance(
                     error!("Error accepting vsocket (timeout): {:?}", e);
                     emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                     return Err(InstanceError::VSockTimeout);
-                },
+                }
             };
 
-            info!("Socket accepted: {}, for instance {}", stream.as_raw_fd(), instance.id);
+            info!(
+                "Socket accepted: {}, for instance {}",
+                stream.as_raw_fd(),
+                instance.id
+            );
 
             let mut buf = [0; 1024];
             let max_retries = 100;
@@ -264,7 +277,11 @@ async fn start_instance(
                         return Err(InstanceError::VSock);
                     }
                 };
-                info!("Socket readable: {}, for instance {}", stream.as_raw_fd(), instance.id);
+                info!(
+                    "Socket readable: {}, for instance {}",
+                    stream.as_raw_fd(),
+                    instance.id
+                );
                 match stream.try_read(&mut buf.as_mut()) {
                     Ok(0) => break,
                     Ok(n) => {
@@ -287,7 +304,10 @@ async fn start_instance(
 
             let message: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buf);
 
-            info!("Received message: {}, for instance {}", message, instance.id);
+            info!(
+                "Received message: {}, for instance {}",
+                message, instance.id
+            );
 
             // Check if the instance is ready through the vsock socket
             match message.contains("ready") {
@@ -298,78 +318,88 @@ async fn start_instance(
                 }
             }
 
-
             info!("Instance is ready: {}", instance.id);
             // Forward request to instance
             let client = Client::default();
 
-
             let max_retries = 5;
             let mut retries = 0;
-            let mut res ;
-                loop {
-                    info!("Instance: {}, num of retries: {}", instance.id, retries);
-                    if retries > max_retries {
-                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
-                        return Err(InstanceError::Timeout);
-                    }
-                    // TODO: Here we should put a timeout
-                    if data.payload.is_none() {
-                        match  client
+            let mut res;
+            loop {
+                info!("Instance: {}, num of retries: {}", instance.id, retries);
+                if retries > max_retries {
+                    emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
+                    return Err(InstanceError::Timeout);
+                }
+                // TODO: Here we should put a timeout
+                if data.payload.is_none() {
+                    match client
                         .get(format!("http://{}:{}", instance.ip, instance.port))
                         .send()
-                        .await {
-                            Ok(result) => {
-                                res = result;
-                                break;
-                            },
-                            Err(e) => match e {
+                        .await
+                    {
+                        Ok(result) => {
+                            res = result;
+                            break;
+                        }
+                        Err(e) => match e {
+                            awc::error::SendRequestError::Send(e) => {
+                                error!("Error in sending the request: {:?}", e);
+                                retries += 1;
+                                sleep(Duration::from_millis(10)).await;
+                                continue;
+                            }
+                            _ => {
+                                error!("Send error: {:?}", e);
+                                emergency_cleanup(
+                                    db_pool,
+                                    &mut instance,
+                                    &mut fc_instance,
+                                    builder,
+                                )
+                                .await;
+                                return Err(InstanceError::HostUnreachable);
+                            }
+                        },
+                    };
+                } else {
+                    let payload = Payload {
+                        payload: data.payload.clone().unwrap(),
+                    };
+                    match client
+                        .post(format!("http://{}:{}", instance.ip, instance.port))
+                        .send_json(&payload)
+                        .await
+                    {
+                        Ok(result) => {
+                            res = result;
+                            break;
+                        }
+                        Err(e) => {
+                            match e {
                                 awc::error::SendRequestError::Send(e) => {
-                                    error!("Error in sending the request: {:?}", e);
+                                    error!("Error sending the request: {:?}", e);
                                     retries += 1;
                                     sleep(Duration::from_millis(10)).await;
                                     continue;
                                 }
                                 _ => {
                                     error!("Send error: {:?}", e);
-                                    emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
+                                    emergency_cleanup(
+                                        db_pool,
+                                        &mut instance,
+                                        &mut fc_instance,
+                                        builder,
+                                    )
+                                    .await;
                                     return Err(InstanceError::HostUnreachable);
                                 }
-                            }
-                        };
-                    } else {
-                        let payload = Payload {
-                            payload: data.payload.clone().unwrap(),
-                        };
-                        match client
-                            .post(format!("http://{}:{}", instance.ip, instance.port))
-                            .send_json(&payload)
-                            .await {
-                                Ok(result) => {
-                                    res = result;
-                                    break;
-                                },
-                                Err(e) => {
-                                    match e {
-                                        awc::error::SendRequestError::Send(e) => {
-                                            error!("Error sending the request: {:?}", e);
-                                            retries += 1;
-                                            sleep(Duration::from_millis(10)).await;
-                                            continue;
-                                        }
-                                        _ => {
-                                            error!("Send error: {:?}", e);
-                                            emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
-                                            return Err(InstanceError::HostUnreachable);
-                                        }
-                                    };
-                                },
                             };
-                    }
+                        }
+                    };
                 }
-            
+            }
 
-       
             let body = res.body().await;
 
             let _ = fc_instance.stop().await;

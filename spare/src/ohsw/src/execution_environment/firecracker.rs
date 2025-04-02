@@ -40,7 +40,7 @@ impl FirecrackerBuilder {
         memory: i32,
     ) -> Result<FirecrackerInstance, FirepilotError> {
         let mut network = {
-            match  self.network.lock() {
+            match self.network.lock() {
                 Ok(network) => network,
                 Err(e) => {
                     return Err(FirepilotError::Unknown(format!(

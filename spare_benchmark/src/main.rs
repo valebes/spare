@@ -1,7 +1,7 @@
 use std::{
     env,
-    fs::OpenOptions,
-    io::Write,
+    fs::{File, OpenOptions},
+    io::{BufReader, Read, Write},
     path::Path,
     str::FromStr,
     sync::{
@@ -11,19 +11,15 @@ use std::{
     time::Duration,
 };
 
+use base64::{engine::general_purpose, Engine};
 use clap::Parser;
+
 use iggy::{
-    client::{Client, MessageClient, StreamClient, TopicClient, UserClient},
+    client::{Client, UserClient},
     clients::client::IggyClient,
-    compression::compression_algorithm::CompressionAlgorithm,
-    consumer::Consumer,
-    error::IggyError,
-    identifier::Identifier,
-    messages::{poll_messages::PollingStrategy, send_messages::Partitioning},
     users::defaults::{DEFAULT_ROOT_PASSWORD, DEFAULT_ROOT_USERNAME},
-    utils::expiry::IggyExpiry,
 };
-use log::{error, info, warn};
+use log::{error, info};
 use longitude::Location;
 use rand::distr::Distribution;
 use rand::distr::Uniform;
@@ -38,10 +34,8 @@ use tokio::{
 mod dataset;
 use dataset::*;
 
-const STREAM_ID: u32 = 1;
-const TOPIC_ID: u32 = 1;
-const ANNOUNCE_PARTITION_ID: u32 = 1;
-const BROADCAST_PARTITION_ID: u32 = 2;
+mod iggy_client;
+use iggy_client::*;
 
 // Args for the CLI
 #[derive(Parser, Debug)]
@@ -63,6 +57,9 @@ struct Args {
 
     #[arg(short, long, default_value = "10")]
     iterations: i32,
+
+    #[arg(short, long, default_value = "")]
+    payload: String
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -79,30 +76,6 @@ impl Node {
     }
 }
 
-#[derive(Deserialize, Serialize)]
-struct Emergency {
-    /// The position of the emergency point
-    position: (f64, f64),
-    /// The radius of the emergency point
-    radius: f64,
-}
-
-#[derive(Deserialize, Serialize)]
-struct Period {
-    start: String,
-    end: String,
-}
-
-#[derive(PartialEq, Eq, Deserialize, Serialize)]
-enum Operation {
-    START_EMERGENCY = 0,
-    STOP_EMERGENCY = 1,
-    ADD_NODES = 2,
-    ANNOUNCE = 3,
-    END = 4,
-    WRITE_STATS = 5,
-}
-
 // Or a Vec of Nodes or a single emergency point
 #[derive(Deserialize, Serialize)]
 enum Payload {
@@ -117,162 +90,18 @@ struct Message {
     payload: Option<Payload>,
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct InvokeFunction {
-    pub function: String,
-    pub image: String,
-    pub vcpus: i32,
-    pub memory: i32,
-    pub payload: Option<String>,
-    pub emergency: bool,
-    pub hops: i32,
+#[derive(Deserialize, Serialize)]
+struct Emergency {
+    /// The position of the emergency point
+    position: (f64, f64),
+    /// The radius of the emergency point
+    radius: f64,
 }
 
-// Initializes stream and topic
-async fn init_system(client: &IggyClient) {
-    match client
-        .create_stream("default-stream", Some(STREAM_ID))
-        .await
-    {
-        Ok(_) => info!("Stream was created."),
-        Err(_) => warn!("Stream already exists and will not be created again."),
-    }
-
-    match client
-        .create_topic(
-            &STREAM_ID.try_into().unwrap(),
-            "cluster",
-            2,
-            CompressionAlgorithm::default(),
-            None,
-            Some(TOPIC_ID),
-            IggyExpiry::NeverExpire,
-            None.into(),
-        )
-        .await
-    {
-        Ok(_) => info!("Topic was created."),
-        Err(_) => warn!("Topic already exists and will not be created again."),
-    }
-}
-
-// Send message to topic
-async fn send_message(
-    client: &IggyClient,
-    partition_id: u32,
-    message: Message,
-) -> Result<(), IggyError> {
-    let message = iggy::messages::send_messages::Message::from_str(
-        serde_json::to_string(&message).unwrap().as_str(),
-    )
-    .unwrap();
-    client
-        .send_messages(
-            &STREAM_ID.try_into().unwrap(),
-            &TOPIC_ID.try_into().unwrap(),
-            &Partitioning::partition_id(partition_id),
-            &mut [message],
-        )
-        .await
-}
-
-// Receive message from topic
-async fn receive_message(client: &IggyClient) -> Result<Message, IggyError> {
-    loop {
-        let polled_messages = client
-            .poll_messages(
-                &STREAM_ID.try_into()?,
-                &TOPIC_ID.try_into()?,
-                Some(BROADCAST_PARTITION_ID),
-                &Consumer::new(Identifier::named("master").unwrap()),
-                &PollingStrategy::next(),
-                1,
-                true,
-            )
-            .await?;
-
-        if polled_messages.messages.is_empty() {
-            continue;
-        }
-
-        let deserialized =
-            serde_json::from_slice::<Message>(&polled_messages.messages[0].payload).unwrap();
-        return Ok(deserialized);
-    }
-}
-
-// Wait for nodes to be ready
-async fn wait_for_nodes(client: &IggyClient, number_of_nodes: i32) -> Result<Vec<Node>, IggyError> {
-    let mut nodes: Vec<Node> = Vec::new();
-    let consumer = Consumer::new(Identifier::named("master").unwrap());
-
-    loop {
-        let polled_messages = client
-            .poll_messages(
-                &STREAM_ID.try_into()?,
-                &TOPIC_ID.try_into()?,
-                Some(ANNOUNCE_PARTITION_ID),
-                &consumer,
-                &PollingStrategy::next(),
-                1,
-                true,
-            )
-            .await?;
-
-        if polled_messages.messages.is_empty() {
-            continue;
-        }
-
-        info!("Polled {} messages", polled_messages.messages.len());
-
-        for message in polled_messages.messages {
-            let msg =
-                serde_json::from_str::<Message>(std::str::from_utf8(&message.payload).unwrap());
-
-            if msg.is_err() {
-                continue;
-            }
-
-            let msg = msg.unwrap();
-
-            match msg.payload {
-                Some(Payload::Nodes(tmp)) => {
-                    nodes.extend(tmp);
-                }
-                _ => {
-                    error!("Unexpected payload type");
-                }
-            }
-        }
-
-        if nodes.len() == number_of_nodes as usize {
-            return Ok(nodes);
-        }
-    }
-}
-
-async fn start_emergency(client: &IggyClient, emergency: Emergency) -> Result<(), IggyError> {
-    send_message(
-        &client,
-        BROADCAST_PARTITION_ID,
-        Message {
-            op: Operation::START_EMERGENCY,
-            payload: Some(Payload::Emergency(emergency)),
-        },
-    )
-    .await
-}
-
-async fn stop_emergency(client: &IggyClient) -> Result<(), IggyError> {
-    send_message(
-        &client,
-        BROADCAST_PARTITION_ID,
-        Message {
-            op: Operation::STOP_EMERGENCY,
-            payload: None,
-        },
-    )
-    .await
+#[derive(Deserialize, Serialize)]
+struct Period {
+    start: String,
+    end: String,
 }
 
 async fn test(
@@ -280,6 +109,7 @@ async fn test(
     iterations: i32,
     nodes: Vec<Node>,
     function_path: &String,
+    payload: &Option<String>
 ) -> (u128, usize, usize, Vec<u128>) {
     let request_per_epoch = 6 * nodes.len();
     let mut latency_per_epoch = Vec::new();
@@ -306,20 +136,21 @@ async fn test(
             let failed_tmp = Arc::clone(&failed);
             let function_path_tmp = function_path.clone();
 
+            let payload_clone = payload.clone();
             sleep(Duration::from_millis(55)).await; // Inter-arrival time
             let handle = tokio::spawn(async move {
                 let web_client = reqwest::Client::builder()
-                .deflate(true)
-                .gzip(true)
+                    .deflate(true)
+                    .gzip(true)
                     .build()
                     .unwrap();
 
                 let invoke_function = InvokeFunction {
-                    function: "mandelbrot".to_string(), // Function name (This is hardcoded for now)
+                    function: "test".to_string(), // Function name (This is hardcoded for now)
                     image: function_path_tmp,
                     vcpus: 2,
                     memory: 256,
-                    payload: None,
+                    payload: payload_clone,
                     emergency: false,
                     hops: 0,
                 };
@@ -411,10 +242,7 @@ async fn test(
         println!(
             "Epoch {} - Latency: {} ms",
             i,
-            latency_per_epoch
-                .last()
-                .unwrap_or(&0)
-                .to_string()
+            latency_per_epoch.last().unwrap_or(&0).to_string()
         );
         sleep(Duration::from_secs(5)).await;
     }
@@ -433,24 +261,22 @@ async fn test(
 #[tokio::main]
 async fn main() {
     env_logger::init();
-
     // Check environment variables
     // Fetch the function to execute from environment
-    let mut function_path = String::new();
     let function = env::var("SPARE_FUNCTION");
-    match function {
+    let function_path = match function {
         Ok(val) => {
             // Check if the file exists
             let path = Path::new(&val);
             if !path.exists() {
                 //panic!("Function image {} does not exist", val); // Commented out for now, as the function image may reside in a different location depoending on the node
             }
-            function_path = val;
+            val
         }
         Err(e) => {
             panic!("SPARE_FUNCTION environment variable not set: {}", e);
         }
-    }
+    };
 
     // Parse arguments from CLI
     let args = Args::parse();
@@ -522,13 +348,28 @@ async fn main() {
     // Wait for nodes to be ready
     sleep(Duration::from_secs(5)).await;
 
+
+    // Load the payload, if any
+    let payload = if args.payload != "" {
+         let file = File::open(args.payload).unwrap();
+         let mut reader = BufReader::new(file);
+         let mut content = Vec::new();
+         reader.read_to_end(&mut content).unwrap();
+
+        let encoded = general_purpose::STANDARD.encode(content);
+
+        Some(encoded)
+    } else {
+        None
+    };
+    
     // EXPERIMENT
     println!("Starting test with {} nodes", args.number_of_nodes);
     println!("NORMAL SCENARIO");
     let iterations = args.iterations;
 
     let (avg_normal_latency, completed_normal, failed_normal, latency_per_epoch_normal) =
-        test(&client, iterations, nodes.clone(), &function_path).await;
+        test(&client, iterations, nodes.clone(), &function_path, &payload).await;
 
     println!("EMERGENCY SCENARIO");
     let emergency = Emergency {
@@ -546,7 +387,7 @@ async fn main() {
     sleep(Duration::from_secs(5)).await;
 
     let (avg_emergency_latency, completed_emergency, failed_emergency, latency_per_epoch_emergency) =
-        test(&client, iterations, nodes.clone(), &function_path).await;
+        test(&client, iterations, nodes.clone(), &function_path, &payload).await;
 
     stop_emergency(&client).await.unwrap();
 
