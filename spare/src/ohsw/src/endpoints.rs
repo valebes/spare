@@ -196,7 +196,7 @@ async fn start_instance(
             // Make sure the vsock socket is ready
             let mut path = fc_instance.get_vsock_path();
             
-            // CHeck if the vsock file exists, if not wait in a loop
+            // Check if the vsock file exists, if not wait in a loop
             loop {
                 if Path::new(&path).exists() {
                     break;
@@ -218,7 +218,8 @@ async fn start_instance(
             // Start instance
             match fc_instance.start().await {
                 Ok(_) => {}
-                Err(_) => {
+                Err(e) => {
+                    error!("Error in starting the instance: {}", e);
                     emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                     return Err(InstanceError::InstanceStart);
                 }
