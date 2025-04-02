@@ -360,7 +360,6 @@ async fn test(
                         Err(e) => {
                             error!("Error: {}!", e);
                             if e.is_timeout() {
-                                sleep(Duration::from_millis(100000)).await; // Retry after 100ms
                                 error!("Timeout! Now trying again...");
                             } else if e.is_connect() {
                                 error!("Connection error! Now trying again...");
