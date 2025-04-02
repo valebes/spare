@@ -13,7 +13,7 @@ use sqlx::{sqlite, Pool};
 use crate::{
     api::{invoke::InvokeFunction, payload::Payload},
     db::{self, models::Instance},
-    execution_environment::firecracker::FirecrackerBuilder,
+    execution_environment::firecracker::{FirecrackerBuilder, FirecrackerInstance},
     orchestrator::{self},
 };
 
@@ -134,6 +134,17 @@ async fn invoke(
     }
 }
 
+async fn emergency_cleanup(db_pool: &Pool<sqlite::Sqlite>, instance: &mut Instance, fc_instance: &mut FirecrackerInstance, builder: &web::Data<Arc<FirecrackerBuilder>>) {
+    instance.set_status("failed".to_string());
+    let _ = instance.update(&db_pool).await;
+    let _ = fc_instance.delete().await;
+    builder
+        .network
+        .lock()
+        .unwrap()
+        .release(fc_instance.get_address());
+}
+
 /// Method to start a new instance on the node
 async fn start_instance(
     firecracker_builder: &web::Data<Arc<FirecrackerBuilder>>,
@@ -175,6 +186,7 @@ async fn start_instance(
                 Ok(_) => {}
                 Err(e) => {
                     error!("Failed to insert instance in the database: {:?}", e);
+                    emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                     return Err(InstanceError::Database);
                 }
             }
@@ -197,15 +209,7 @@ async fn start_instance(
             let socket = UnixListener::bind(path);
 
             if socket.is_err() {
-                // If an error occurs, delete the instance and set 'failed' status
-                instance.set_status("failed".to_string());
-                let _ = instance.update(&db_pool).await;
-                let _ = fc_instance.delete().await;
-                builder
-                    .network
-                    .lock()
-                    .unwrap()
-                    .release(fc_instance.get_address());
+                emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                 return Err(InstanceError::VSockCreation);
             }
             let socket = socket.unwrap();
@@ -215,15 +219,7 @@ async fn start_instance(
             match fc_instance.start().await {
                 Ok(_) => {}
                 Err(_) => {
-                    // If an error occurs, delete the instance and set 'failed' status
-                    instance.set_status("failed".to_string());
-                    let _ = instance.update(&db_pool).await;
-                    let _ = fc_instance.delete().await;
-                    builder
-                        .network
-                        .lock()
-                        .unwrap()
-                        .release(fc_instance.get_address());
+                    emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                     return Err(InstanceError::InstanceStart);
                 }
             }
@@ -237,15 +233,7 @@ async fn start_instance(
                         Ok((stream, _)) => stream,
                         Err(e) => {
                             error!("Error accepting vsocket (stream): {:?}", e);
-                            // If an error occurs, delete the instance and set 'failed' status
-                            instance.set_status("failed".to_string());
-                            let _ = instance.update(&db_pool).await;
-                            let _ = fc_instance.delete().await;
-                            builder
-                                .network
-                                .lock()
-                                .unwrap()
-                                .release(fc_instance.get_address());
+                            emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                             return Err(InstanceError::VSock);
                         }
                     }
@@ -253,14 +241,7 @@ async fn start_instance(
                 Err(e) => {
                     // If an error occurs, delete the instance and set 'failed' status
                     error!("Error accepting vsocket (timeout): {:?}", e);
-                    instance.set_status("failed".to_string());
-                    let _ = instance.update(&db_pool).await;
-                    let _ = fc_instance.delete().await;
-                    builder
-                        .network
-                        .lock()
-                        .unwrap()
-                        .release(fc_instance.get_address());
+                    emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                     return Err(InstanceError::VSockTimeout);
                 },
             };
@@ -272,29 +253,13 @@ async fn start_instance(
             let mut retries = 0;
             loop {
                 if retries > max_retries {
-                    // If an error occurs, delete the instance and set 'failed' status
-                    instance.set_status("failed".to_string());
-                    let _ = instance.update(&db_pool).await;
-                    let _ = fc_instance.delete().await;
-                    builder
-                        .network
-                        .lock()
-                        .unwrap()
-                        .release(fc_instance.get_address());
+                    emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                     return Err(InstanceError::VSockTimeout);
                 }
                 match stream.readable().await {
                     Ok(_) => {}
                     Err(_) => {
-                        // If an error occurs, delete the instance and set 'failed' status
-                        instance.set_status("failed".to_string());
-                        let _ = instance.update(&db_pool).await;
-                        let _ = fc_instance.delete().await;
-                        builder
-                            .network
-                            .lock()
-                            .unwrap()
-                            .release(fc_instance.get_address());
+                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                         return Err(InstanceError::VSock);
                     }
                 };
@@ -313,15 +278,7 @@ async fn start_instance(
                         continue;
                     }
                     Err(_e) => {
-                        // If an error occurs, delete the instance and set 'failed' status
-                        instance.set_status("failed".to_string());
-                        let _ = instance.update(&db_pool).await;
-                        let _ = fc_instance.delete().await;
-                        builder
-                            .network
-                            .lock()
-                            .unwrap()
-                            .release(fc_instance.get_address());
+                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                         return Err(InstanceError::VSock);
                     }
                 };
@@ -335,15 +292,7 @@ async fn start_instance(
             match message.contains("ready") {
                 true => {}
                 false => {
-                    // If an error occurs, delete the instance and set 'failed' status
-                    instance.set_status("failed".to_string());
-                    let _ = instance.update(&db_pool).await;
-                    let _ = fc_instance.delete().await;
-                    builder
-                        .network
-                        .lock()
-                        .unwrap()
-                        .release(fc_instance.get_address());
+                    emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                     return Err(InstanceError::VSock);
                 }
             }
@@ -360,15 +309,7 @@ async fn start_instance(
                 loop {
                     info!("Instance: {}, num of retries: {}", instance.id, retries);
                     if retries > max_retries {
-                        // If an error occurs, delete the instance and set 'failed' status
-                        instance.set_status("failed".to_string());
-                        let _ = instance.update(&db_pool).await;
-                        let _ = fc_instance.delete().await;
-                        builder
-                            .network
-                            .lock()
-                            .unwrap()
-                            .release(fc_instance.get_address());
+                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                         return Err(InstanceError::Timeout);
                     }
                     // TODO: Here we should put a timeout
@@ -383,21 +324,14 @@ async fn start_instance(
                             },
                             Err(e) => match e {
                                 awc::error::SendRequestError::Send(e) => {
-                                    error!("Error sending: {:?}", e);
+                                    error!("Error in sending the request: {:?}", e);
                                     retries += 1;
                                     sleep(Duration::from_millis(10)).await;
                                     continue;
                                 }
                                 _ => {
-                                    error!("Error: {:?}", e);
-                                    instance.set_status("failed".to_string());
-                                    let _ = instance.update(&db_pool).await;
-                                    let _ = fc_instance.delete().await;
-                                    builder
-                                        .network
-                                        .lock()
-                                        .unwrap()
-                                        .release(fc_instance.get_address());
+                                    error!("Send error: {:?}", e);
+                                    emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                                     return Err(InstanceError::HostUnreachable);
                                 }
                             }
@@ -417,21 +351,14 @@ async fn start_instance(
                                 Err(e) => {
                                     match e {
                                         awc::error::SendRequestError::Send(e) => {
-                                            error!("Error sending: {:?}", e);
+                                            error!("Error sending the request: {:?}", e);
                                             retries += 1;
                                             sleep(Duration::from_millis(10)).await;
                                             continue;
                                         }
                                         _ => {
-                                            error!("Error: {:?}", e);
-                                            instance.set_status("failed".to_string());
-                                            let _ = instance.update(&db_pool).await;
-                                            let _ = fc_instance.delete().await;
-                                            builder
-                                                .network
-                                                .lock()
-                                                .unwrap()
-                                                .release(fc_instance.get_address());
+                                            error!("Send error: {:?}", e);
+                                            emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                                             return Err(InstanceError::HostUnreachable);
                                         }
                                     };
