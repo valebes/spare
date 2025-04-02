@@ -332,6 +332,7 @@ async fn test(
                             Url::from_str(&format!("http://{}/invoke", address).as_str()).unwrap(),
                         )
                         .json(&invoke_function)
+                        .timeout(Duration::from_secs(5))
                         .send()
                         .await;
 
@@ -359,6 +360,7 @@ async fn test(
                         Err(e) => {
                             error!("Error: {}!", e);
                             if e.is_timeout() {
+                                sleep(Duration::from_millis(100000)).await; // Retry after 100ms
                                 error!("Timeout! Now trying again...");
                             } else if e.is_connect() {
                                 error!("Connection error! Now trying again...");
