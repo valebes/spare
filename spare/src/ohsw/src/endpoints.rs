@@ -356,6 +356,7 @@ async fn start_instance(
             let mut retries = 0;
             let mut res ;
                 loop {
+                    info!("Instance: {}, num of retries: {}", instance.id, retries);
                     if retries > max_retries {
                         // If an error occurs, delete the instance and set 'failed' status
                         instance.set_status("failed".to_string());
@@ -368,7 +369,7 @@ async fn start_instance(
                             .release(fc_instance.get_address());
                         return Err(InstanceError::Timeout);
                     }
-                    
+                    // TODO: Here we should put a timeout
                     if data.payload.is_none() {
                         match  client
                         .get(format!("http://{}:{}", instance.ip, instance.port))
@@ -380,7 +381,7 @@ async fn start_instance(
                             },
                             Err(e) => match e {
                                 awc::error::SendRequestError::Send(e) => {
-                                    error!("Error: {:?}", e);
+                                    error!("Error sending: {:?}", e);
                                     retries += 1;
                                     sleep(Duration::from_millis(10)).await;
                                     continue;
@@ -414,7 +415,7 @@ async fn start_instance(
                                 Err(e) => {
                                     match e {
                                         awc::error::SendRequestError::Send(e) => {
-                                            error!("Error: {:?}", e);
+                                            error!("Error sending: {:?}", e);
                                             retries += 1;
                                             sleep(Duration::from_millis(10)).await;
                                             continue;
