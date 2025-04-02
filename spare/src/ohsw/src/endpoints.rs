@@ -235,7 +235,8 @@ async fn start_instance(
                 Ok(res) => {
                     match res {
                         Ok((stream, _)) => stream,
-                        Err(_) => {
+                        Err(e) => {
+                            error!("Error accepting vsocket: {:?}", e);
                             // If an error occurs, delete the instance and set 'failed' status
                             instance.set_status("failed".to_string());
                             let _ = instance.update(&db_pool).await;
