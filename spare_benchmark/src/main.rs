@@ -161,7 +161,7 @@ async fn test(
                     let req: Result<reqwest::Response, reqwest::Error> = web_client
                         .post(
                             Url::from_str(&format!("http://{}/invoke", address).as_str()).unwrap(),
-                        )ß
+                        )
                         .json(&invoke_function)
                         .timeout(Duration::from_secs(60))
                         .send()
