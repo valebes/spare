@@ -396,6 +396,11 @@ async fn start_instance(
 
             let body = res.unwrap().body().await;
 
+            let _ = fc_instance.stop().await;
+            let _ = fc_instance.delete().await;
+            let _ = instance.set_status("terminated".to_string());
+            let _ = instance.update(&db_pool).await;
+
             // Cleanup instance
             builder
                 .network
@@ -403,10 +408,7 @@ async fn start_instance(
                 .unwrap()
                 .release(fc_instance.get_address());
 
-            let _ = fc_instance.stop().await;
-            let _ = fc_instance.delete().await;
-            let _ = instance.set_status("terminated".to_string());
-            let _ = instance.update(&db_pool).await;
+            info!("Instance {} terminated", instance.id);
 
             Ok(body)
         }
