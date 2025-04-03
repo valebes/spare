@@ -482,7 +482,6 @@ async fn start_instance(
                     Ok(0) => break,
                     Ok(n) => {
                         if n == len {
-                            result.extend_from_slice(&buf);
                             break;
                         }
                     }
@@ -497,6 +496,8 @@ async fn start_instance(
                     }
                 };
             }
+
+            result.extend_from_slice(&buf);
 
             /*
                The problem here: The instance at this point is ready, but in some
