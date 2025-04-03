@@ -360,6 +360,12 @@ async fn start_instance(
                                 retries += 1;
                                 sleep(Duration::from_millis(10)).await;
                                 continue;
+                            },
+                            awc::error::SendRequestError::Timeout => {
+                                error!("Error in connecting to the instance due timeout!");
+                                retries += 1;
+                                sleep(Duration::from_millis(10)).await;
+                                continue;
                             }
                             _ => {
                                 error!("Send error: {:?}", e);
