@@ -474,7 +474,7 @@ async fn start_instance(
             error!("Reading {} bytes from vsock", len);
             let mut bytes_read: usize = 0;
 
-            let mut buf = vec![0; len as usize];
+            let mut buf = vec![0; len];
             loop {
                 match stream.readable().await {
                     Ok(_) => {}
@@ -484,7 +484,7 @@ async fn start_instance(
                         return Err(InstanceError::VSock);
                     }
                 };
-                match stream.try_read(&mut buf.as_mut()) {
+                match stream.try_read_buf(&mut buf) {
                     Ok(0) => break,
                     Ok(n) => {
                         bytes_read += n;
