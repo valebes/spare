@@ -1,4 +1,4 @@
-use std::{io, os::fd::AsRawFd, path::Path, result, sync::Arc, time::Duration, vec};
+use std::{io::{self, Read}, os::fd::AsRawFd, path::Path, result, sync::Arc, time::Duration, vec};
 
 use actix_web::{
     get, post,
@@ -482,6 +482,10 @@ async fn start_instance(
                     return Err(InstanceError::VSock);
                 }
             };
+
+            let mut stream = stream.into_std().unwrap();
+            stream.read_exact(buf.as_mut()).unwrap();
+            /*
             loop {
                 match stream.try_read(&mut buf[bytes_read..]) {
                     Ok(0) => break,
@@ -503,6 +507,7 @@ async fn start_instance(
                     }
                 };
             }
+            */
 
             /*
                The problem here: The instance at this point is ready, but in some
