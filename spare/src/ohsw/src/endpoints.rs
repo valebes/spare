@@ -454,6 +454,15 @@ async fn start_instance(
                     }
                 };
 
+                match stream.readable().await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("Error reading from vsocket: {}", e);
+                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
+                        return Err(InstanceError::VSock);
+                    }
+                };
+
                 let len = u64::from_be_bytes(len) as usize;
 
                 let mut buf = vec![0; len as usize];
