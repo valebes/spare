@@ -1,4 +1,4 @@
-use std::{io, os::fd::AsRawFd, path::Path, result, sync::Arc, time::Duration};
+use std::{io, os::fd::AsRawFd, path::Path, result, sync::Arc, time::Duration, vec};
 
 use actix_web::{
     get, post,
@@ -448,7 +448,7 @@ async fn start_instance(
                     }
                 };
 
-                match stream.try_read(&mut len.as_mut()) {
+                match stream.try_read(&mut len[bytes_read..]) {
                     Ok(0) => break,
                     Ok(n) => {
                         bytes_read += n;
@@ -473,7 +473,7 @@ async fn start_instance(
             error!("Reading {} bytes from vsock", len);
             let mut bytes_read: usize = 0;
 
-            let mut buf = Vec::new();
+            let mut buf = vec![0; len];
             loop {
                 error!("Stuck on reading");
                 match stream.readable().await {
@@ -484,7 +484,7 @@ async fn start_instance(
                         return Err(InstanceError::VSock);
                     }
                 };
-                match stream.try_read_buf(&mut buf) {
+                match stream.try_read(&mut buf[bytes_read..]) {
                     Ok(0) => break,
                     Ok(n) => {
                         bytes_read += n;
