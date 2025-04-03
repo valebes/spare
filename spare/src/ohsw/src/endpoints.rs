@@ -433,6 +433,8 @@ async fn start_instance(
                 },
             }
 
+            error!("Waiting for response from vsock");
+
             let mut result = Vec::new();
             let mut len = [0; 8];
             let mut bytes_read: usize = 0;
