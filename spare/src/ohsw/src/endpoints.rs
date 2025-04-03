@@ -353,6 +353,9 @@ async fn start_instance(
                                 Ok(n) => {
                                     bytes_written += n;
                                 }
+                                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                                    continue;
+                                }
                                 Err(e) => {
                                     error!("Error writing to vsocket: {}", e);
                                     emergency_cleanup(
@@ -373,6 +376,9 @@ async fn start_instance(
                                 Ok(n) => {
                                     bytes_written += n;
                                 }
+                                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                                    continue;
+                                }
                                 Err(e) => {
                                     error!("Error writing to vsocket: {}", e);
                                     emergency_cleanup(
@@ -389,43 +395,41 @@ async fn start_instance(
                         break;
                     }
                 }
-                None => {
-                    loop {
-                        match stream.writable().await {
-                            Ok(_) => {}
+                None => loop {
+                    match stream.writable().await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("Error writing to vsocket: {}", e);
+                            emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder)
+                                .await;
+                            return Err(InstanceError::VSock);
+                        }
+                    };
+                    let buf = [0; 8];
+                    let mut bytes_written = 0;
+                    while bytes_written < 8 {
+                        match stream.try_write(&buf[bytes_written..]) {
+                            Ok(n) => {
+                                bytes_written += n;
+                            }
+                            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                                continue;
+                            }
                             Err(e) => {
                                 error!("Error writing to vsocket: {}", e);
-                                emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder)
-                                    .await;
+                                emergency_cleanup(
+                                    db_pool,
+                                    &mut instance,
+                                    &mut fc_instance,
+                                    builder,
+                                )
+                                .await;
                                 return Err(InstanceError::VSock);
-                            }
-                        };
-                        let buf = [0; 8];
-                        let mut bytes_written = 0;
-                        while bytes_written < 8 {
-                            match stream.try_write(&buf[bytes_written..]) {
-                                Ok(n) => {
-                                    bytes_written += n;
-                                },
-                                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                                    continue;
-                                },
-                                Err(e) => {
-                                    error!("Error writing to vsocket: {}", e);
-                                    emergency_cleanup(
-                                        db_pool,
-                                        &mut instance,
-                                        &mut fc_instance,
-                                        builder,
-                                    )
-                                    .await;
-                                    return Err(InstanceError::VSock);
-                                }
                             }
                         }
                     }
-
-                }
+                    break;
+                },
             }
 
             let mut result = Vec::new();
