@@ -453,6 +453,7 @@ async fn start_instance(
                     Ok(0) => break,
                     Ok(n) => {
                         bytes_read += n;
+                        error!("Read {} bytes from vsock", bytes_read);
                         if bytes_read == 8 {
                             error!("Read more than 8 bytes from vsock");
                             break;
