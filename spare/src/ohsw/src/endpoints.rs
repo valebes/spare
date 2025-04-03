@@ -464,6 +464,7 @@ async fn start_instance(
                 };
 
                 let len = u64::from_be_bytes(len) as usize;
+                error!("Reading {} bytes from vsock", len);
 
                 let mut buf = vec![0; len as usize];
                 match stream.try_read(&mut buf.as_mut()) {
