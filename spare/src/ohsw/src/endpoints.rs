@@ -287,10 +287,10 @@ async fn start_instance(
                 match stream.try_read(&mut buf.as_mut()) {
                     Ok(0) => break,
                     Ok(n) => {
+                        bytes_read += n;
                         if bytes_read == 5 {
                             break;
                         }
-                        bytes_read += n;
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                         retries += 1;
