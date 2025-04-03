@@ -169,7 +169,7 @@ async fn start_instance(
         6) Return response
         7) Delete instance
     */
-    let builder = firecracker_builder; // TODO: Remove lock
+    let builder = firecracker_builder;
 
     // Create new instance
     let fc_instance = builder
@@ -217,6 +217,7 @@ async fn start_instance(
             let socket = UnixListener::bind(path);
 
             if socket.is_err() {
+                error!("Error binding vsock socket: {}", socket.err().unwrap());
                 emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                 return Err(InstanceError::VSockCreation);
             }
