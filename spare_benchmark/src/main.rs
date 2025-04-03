@@ -111,9 +111,9 @@ async fn test(
     function_path: &String,
     payload: &Option<String>
 ) -> (u128, usize, usize, Vec<u128>) {
-    let request_per_epoch = ((8 * nodes.len()) as f32 * 0.6).floor() as usize; // 70% utilization
+    let request_per_epoch = ((4 * nodes.len()) as f32 * 0.6).floor() as usize; // 70% utilization
 
-    let inter_arrival = 11; // ms
+    let inter_arrival = 30; // ms
     let mut latency_per_epoch = Vec::new();
     let latency = Arc::new(Mutex::new(Vec::new()));
     let completed = Arc::new(AtomicUsize::new(0));
@@ -150,8 +150,8 @@ async fn test(
                 let invoke_function = InvokeFunction {
                     function: "test".to_string(), // Function name (This is hardcoded for now)
                     image: function_path_tmp,
-                    vcpus: 1,
-                    memory: 512,
+                    vcpus: 2,
+                    memory: 256,
                     payload: payload_clone,
                     emergency: false,
                     hops: 0,

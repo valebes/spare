@@ -87,23 +87,29 @@ async fn invoke(
         return HttpResponse::InternalServerError().body("Too many hops\n");
     }
 
+    // Emergency Management
+    // If in emergency mode, but the request is not in emergency, offload the request
+    if orchestrator.in_emergency_area() && !data.emergency {
+        let body = orchestrator.offload(data, req).await;
+        return body;
+    }
+
+    // Otherwise, handle the request
     // Check and acquire resources
     let _resources = orchestrator.check_and_acquire_resources(
         data.vcpus.try_into().unwrap(),
         (data.memory * 1024).try_into().unwrap(),
     );
 
-    // EMERGENCY MANAGEMENT
     // If no resources are available, offload the request
-    // If in emergency mode, but the request is not in emergency, offload the request
-    if _resources.is_err() || (orchestrator.in_emergency_area() && !data.emergency) {
-        if _resources.is_ok() {
-            let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
-        }
+    if _resources.is_err() {
+        let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
         let body = orchestrator.offload(data, req).await;
         return body;
     }
 
+
+    // If resources are available, start the instance
     // Start instance
     let max_retries = 3;
     let mut retries = 0;
