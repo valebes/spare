@@ -489,7 +489,7 @@ async fn start_instance(
                     Ok(n) => {
                         bytes_read += n;
                         error!("Read {} bytes from vsock [PAYLOAD]", bytes_read);
-                        if bytes_read == len {
+                        if bytes_read >= len {
                             break;
                         }
                     }
