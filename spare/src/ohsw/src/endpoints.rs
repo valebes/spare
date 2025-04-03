@@ -474,6 +474,8 @@ async fn start_instance(
 
             let mut buf = vec![0; len];
 
+            sleep(Duration::from_millis(1000)).await;
+
             match stream.readable().await {
                 Ok(_) => {}
                 Err(e) => {
@@ -482,8 +484,6 @@ async fn start_instance(
                     return Err(InstanceError::VSock);
                 }
             };
-
-            
             loop {
                 match stream.try_read(&mut buf[bytes_read..]) {
                     Ok(0) => break,
