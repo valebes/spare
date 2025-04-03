@@ -591,6 +591,7 @@ async fn start_instance(
                 .release(fc_instance.get_address());
 
             info!("Instance {} terminated", instance.id);
+            error("Bytes: {}", result.len());
 
             Ok(Bytes::from(result))
         }
