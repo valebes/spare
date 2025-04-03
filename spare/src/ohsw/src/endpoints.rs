@@ -457,7 +457,6 @@ async fn start_instance(
                         }
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                        error!("Stream not ready");
                         // If the stream is not ready, continue
                         continue;
                     }
@@ -495,6 +494,7 @@ async fn start_instance(
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                         // If the stream is not ready, continue
+                        error!("Stream not ready");
                         continue;
                     }
                     Err(e) => {
