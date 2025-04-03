@@ -239,7 +239,7 @@ async fn start_instance(
 
             info!("Starting instance: {} ip: {}", instance.id, instance.ip);
 
-            let stream = match timeout(Duration::from_millis(250), socket.accept()).await {
+            let stream = match timeout(Duration::from_millis(500), socket.accept()).await {
                 Ok(res) => match res {
                     Ok((stream, _)) => stream,
                     Err(e) => {
@@ -328,7 +328,7 @@ async fn start_instance(
             info!("Instance is ready: {}", instance.id);
             // Forward request to instance
             let client = Client::default();
-            let max_retries = 5;
+            let max_retries = 3;
             let mut retries = 0;
             let mut res;
             loop {
