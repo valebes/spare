@@ -423,6 +423,7 @@ async fn start_instance(
             }
 
             let mut result = Vec::new();
+            let mut len = [0; 8];
             // Retrieve back the result
             loop {
                 match stream.readable().await {
@@ -434,7 +435,7 @@ async fn start_instance(
                     }
                 };
 
-                let mut len = [0; 8];
+                
                 match stream.try_read(&mut len.as_mut()) {
                     Ok(0) => break,
                     Ok(n) => {
@@ -453,7 +454,9 @@ async fn start_instance(
                         return Err(InstanceError::VSock);
                     }
                 };
+            }
 
+            loop {
                 match stream.readable().await {
                     Ok(_) => {}
                     Err(e) => {
@@ -486,6 +489,7 @@ async fn start_instance(
                     }
                 };
             }
+            
 
             /*
                The problem here: The instance at this point is ready, but in some
