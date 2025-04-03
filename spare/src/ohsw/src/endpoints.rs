@@ -105,7 +105,7 @@ async fn invoke(
     }
 
     // Start instance
-    let max_retries = 5;
+    let max_retries = 3;
     let mut retries = 0;
     loop {
         if retries > max_retries {
