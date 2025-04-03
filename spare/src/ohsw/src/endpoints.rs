@@ -447,7 +447,6 @@ async fn start_instance(
                         return Err(InstanceError::VSock);
                     }
                 };
-
                 match stream.try_read(&mut len[bytes_read..]) {
                     Ok(0) => break,
                     Ok(n) => {
@@ -458,6 +457,7 @@ async fn start_instance(
                         }
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                        error!("Stream not ready");
                         // If the stream is not ready, continue
                         continue;
                     }
@@ -476,7 +476,14 @@ async fn start_instance(
             let mut buf = vec![0; len];
             loop {
                 error!("Stuck on reading");
-
+                match stream.readable().await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("Error reading response from vsocket: {}", e);
+                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
+                        return Err(InstanceError::VSock);
+                    }
+                };
                 match stream.try_read(&mut buf[bytes_read..]) {
                     Ok(0) => break,
                     Ok(n) => {
