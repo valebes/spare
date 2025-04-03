@@ -450,11 +450,11 @@ async fn start_instance(
                 match stream.try_read(&mut len.as_mut()) {
                     Ok(0) => break,
                     Ok(n) => {
+                        bytes_read += n;
                         if bytes_read == 8 {
                             error!("Read more than 8 bytes from vsock");
                             break;
                         }
-                        bytes_read += n;
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                         // If the stream is not ready, continue
@@ -486,10 +486,10 @@ async fn start_instance(
                 match stream.try_read(&mut buf.as_mut()) {
                     Ok(0) => break,
                     Ok(n) => {
+                        bytes_read += n;
                         if bytes_read == len {
                             break;
                         }
-                        bytes_read += n;
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                         // If the stream is not ready, continue
