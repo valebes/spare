@@ -487,14 +487,13 @@ async fn start_instance(
                     Ok(0) => break,
                     Ok(n) => {
                         bytes_read += n;
-                        error!("Read {} bytes from vsock [PAYLOAD]", bytes_read);
                         if bytes_read >= len {
                             break;
                         }
+                        error!("Read {} bytes from vsock [PAYLOAD]", bytes_read);
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                         // If the stream is not ready, continue
-                        error!("Stream not ready");
                         continue;
                     }
                     Err(e) => {
