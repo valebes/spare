@@ -474,17 +474,18 @@ async fn start_instance(
 
             let mut buf = vec![0; len];
 
-            sleep(Duration::from_millis(1000)).await;
-
-            match stream.readable().await {
-                Ok(_) => {}
-                Err(e) => {
-                    error!("Error reading response from vsocket: {}", e);
-                    emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
-                    return Err(InstanceError::VSock);
-                }
-            };
+            sleep(Duration::from_millis(10)).await;
+            
             loop {
+                match stream.readable().await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("Error reading response from vsocket: {}", e);
+                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
+                        return Err(InstanceError::VSock);
+                    }
+                };
+
                 match stream.try_read(&mut buf[bytes_read..]) {
                     Ok(0) => break,
                     Ok(n) => {
