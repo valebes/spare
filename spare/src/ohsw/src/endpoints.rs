@@ -435,7 +435,6 @@ async fn start_instance(
 
             error!("Waiting for response from vsock");
 
-            let mut result = Vec::new();
             let mut len = [0; 8];
             let mut bytes_read: usize = 0;
             // Retrieve back the result
@@ -505,8 +504,6 @@ async fn start_instance(
                     }
                 };
             }
-
-            result.extend_from_slice(&buf);
 
             /*
                The problem here: The instance at this point is ready, but in some
@@ -622,9 +619,9 @@ async fn start_instance(
                 .release(fc_instance.get_address());
 
             info!("Instance {} terminated", instance.id);
-            error!("Bytes: {}", result.len());
+            error!("Bytes: {}", buf.len());
 
-            Ok(Bytes::from(result))
+            Ok(Bytes::from(buf))
         }
         Err(e) => {
             error!("Failed to create instance: {:?}", e);
