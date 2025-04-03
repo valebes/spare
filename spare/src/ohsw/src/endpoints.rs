@@ -322,14 +322,14 @@ async fn start_instance(
                 }
             }
 
-            // Write payload in the vsock socket
+            // Writs    e payload in the vsock socket
             match &data.payload {
                 Some(payload) => {
                     // Write length of payload
                     let len = payload.len();
                     let mut buf = [0; 8];
                     // Write in the buf the length of the payload
-                    buf.copy_from_slice(&len.to_le_bytes());
+                    buf.copy_from_slice(&len.to_be_bytes());
 
                     loop {
                         match stream.writable().await {
@@ -438,7 +438,7 @@ async fn start_instance(
                 match stream.try_read(&mut len.as_mut()) {
                     Ok(0) => break,
                     Ok(n) => {
-                        if n >= 8 {
+                        if n == 8 {
                             break;
                         }
                     }
@@ -454,12 +454,12 @@ async fn start_instance(
                     }
                 };
 
-                let len = u64::from_le_bytes(len) as usize;
+                let len = u64::from_be_bytes(len) as usize;
                 let mut buf = vec![0; len as usize];
                 match stream.try_read(&mut buf.as_mut()) {
                     Ok(0) => break,
                     Ok(n) => {
-                        if n >= len {
+                        if n == len {
                             result.extend_from_slice(&buf);
                             break;
                         }
