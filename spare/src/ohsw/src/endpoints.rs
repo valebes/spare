@@ -483,7 +483,6 @@ async fn start_instance(
                 }
             };
             loop {
-                error!("Stuck on reading");
                 match stream.try_read(&mut buf[bytes_read..]) {
                     Ok(0) => break,
                     Ok(n) => {
