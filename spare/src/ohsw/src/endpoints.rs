@@ -210,7 +210,7 @@ async fn start_instance(
                     break;
                 }
                 sleep(Duration::from_millis(10)).await;
-                info!("Waiting for vsock socket to be ready: {}", path);
+                error!("Waiting for vsock socket to be ready: {}", path);
             }
 
             path.push_str("_1234");
@@ -267,12 +267,14 @@ async fn start_instance(
             let mut retries = 0;
             loop {
                 if retries > max_retries {
+                    error!("Timeout reading from vsocket: {}", stream.as_raw_fd());
                     emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                     return Err(InstanceError::VSockTimeout);
                 }
                 match stream.readable().await {
                     Ok(_) => {}
                     Err(_) => {
+                        error!("Error reading from vsocket: {}. The socket is not readable.", stream.as_raw_fd());
                         emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                         return Err(InstanceError::VSock);
                     }
@@ -314,6 +316,7 @@ async fn start_instance(
             match message.contains("ready") {
                 true => {}
                 false => {
+                    error!("Instance {} failed to start", instance.id);
                     emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                     return Err(InstanceError::VSock);
                 }
