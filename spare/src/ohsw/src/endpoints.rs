@@ -1,4 +1,4 @@
-use std::{io, os::fd::AsRawFd, path::Path, sync::Arc, time::Duration};
+use std::{io, os::fd::AsRawFd, path::Path, result, sync::Arc, time::Duration};
 
 use actix_web::{
     get, post,
@@ -108,7 +108,6 @@ async fn invoke(
         return body;
     }
 
-
     // If resources are available, start the instance
     // Start instance
     let max_retries = 3;
@@ -121,19 +120,9 @@ async fn invoke(
         }
         match start_instance(&firecracker_builder, &db_pool, &data).await {
             Ok(body) => {
-                match body {
-                    Ok(body) => {
-                        // Release resources
-                        let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
-                        return HttpResponse::Ok().body(body);
-                    }
-                    Err(e) => {
-                        // If an error occurs, release resources and return error
-                        let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
-                        return HttpResponse::InternalServerError()
-                            .body(format!("Failed to start instance: {:?}", e));
-                    }
-                }
+                // Release resources
+                let _ = orchestrator.release_resources(data.vcpus.try_into().unwrap());
+                return HttpResponse::Ok().body(body);
             }
             Err(e) => {
                 error!("Error in starting execution environment: {:?}", e);
@@ -164,7 +153,7 @@ async fn start_instance(
     firecracker_builder: &web::Data<Arc<FirecrackerBuilder>>,
     db_pool: &Pool<sqlite::Sqlite>,
     data: &web::Json<InvokeFunction>,
-) -> Result<Result<Bytes, PayloadError>, InstanceError> {
+) -> Result<Bytes, InstanceError> {
     /*
     TODO: START INSTANCE
         1) Create new vm instance (todo: check if it already exists and mantain warm pool)
@@ -281,7 +270,10 @@ async fn start_instance(
                 match stream.readable().await {
                     Ok(_) => {}
                     Err(_) => {
-                        error!("Error reading from vsocket: {}. The socket is not readable.", stream.as_raw_fd());
+                        error!(
+                            "Error reading from vsocket: {}. The socket is not readable.",
+                            stream.as_raw_fd()
+                        );
                         emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                         return Err(InstanceError::VSock);
                     }
@@ -323,18 +315,175 @@ async fn start_instance(
             match message.contains("ready") {
                 true => {}
                 false => {
+                    error!("Message not ready: {}", message);
                     error!("Instance {} failed to start", instance.id);
                     emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                     return Err(InstanceError::VSock);
                 }
             }
 
-            /*
-                The problem here: The instance at this point is ready, but in some
-                rare cases, firecracker has not initialized the network yet, so
-                request to the instance may go in timeout.
-             */
+            // Write payload in the vsock socket
+            match &data.payload {
+                Some(payload) => {
+                    // Write length of payload
+                    let len = payload.len();
+                    let mut buf = [0; 8];
+                    // Write in the buf the length of the payload
+                    buf.copy_from_slice(&len.to_le_bytes());
 
+                    loop {
+                        match stream.writable().await {
+                            Ok(_) => {}
+                            Err(e) => {
+                                error!("Error writing to vsocket: {}", e);
+                                emergency_cleanup(
+                                    db_pool,
+                                    &mut instance,
+                                    &mut fc_instance,
+                                    builder,
+                                )
+                                .await;
+                                return Err(InstanceError::VSock);
+                            }
+                        };
+
+                        let mut bytes_written = 0;
+                        while bytes_written < 8 {
+                            match stream.try_write(&buf[bytes_written..]) {
+                                Ok(n) => {
+                                    bytes_written += n;
+                                }
+                                Err(e) => {
+                                    error!("Error writing to vsocket: {}", e);
+                                    emergency_cleanup(
+                                        db_pool,
+                                        &mut instance,
+                                        &mut fc_instance,
+                                        builder,
+                                    )
+                                    .await;
+                                    return Err(InstanceError::VSock);
+                                }
+                            }
+                        }
+
+                        bytes_written = 0;
+                        while bytes_written < len {
+                            match stream.try_write(&payload.as_bytes()[bytes_written..]) {
+                                Ok(n) => {
+                                    bytes_written += n;
+                                }
+                                Err(e) => {
+                                    error!("Error writing to vsocket: {}", e);
+                                    emergency_cleanup(
+                                        db_pool,
+                                        &mut instance,
+                                        &mut fc_instance,
+                                        builder,
+                                    )
+                                    .await;
+                                    return Err(InstanceError::VSock);
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+                None => {
+                    match stream.writable().await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("Error writing to vsocket: {}", e);
+                            emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder)
+                                .await;
+                            return Err(InstanceError::VSock);
+                        }
+                    };
+                    let buf = [0; 8];
+                    let mut bytes_written = 0;
+                    while bytes_written < 8 {
+                        match stream.try_write(&buf[bytes_written..]) {
+                            Ok(n) => {
+                                bytes_written += n;
+                            }
+                            Err(e) => {
+                                error!("Error writing to vsocket: {}", e);
+                                emergency_cleanup(
+                                    db_pool,
+                                    &mut instance,
+                                    &mut fc_instance,
+                                    builder,
+                                )
+                                .await;
+                                return Err(InstanceError::VSock);
+                            }
+                        }
+                    }
+                }
+            }
+
+            let mut result = Vec::new();
+            // Retrieve back the result
+            loop {
+                match stream.readable().await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("Error reading from vsocket: {}", e);
+                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
+                        return Err(InstanceError::VSock);
+                    }
+                };
+
+                let mut len = [0; 8];
+                match stream.try_read(&mut len.as_mut()) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        if n >= 8 {
+                            break;
+                        }
+                    }
+                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                        len.fill(0);
+                        // If the stream is not ready, continue
+                        continue;
+                    }
+                    Err(e) => {
+                        error!("Error reading from vsocket: {}", e);
+                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
+                        return Err(InstanceError::VSock);
+                    }
+                };
+
+                let len = u64::from_le_bytes(len) as usize;
+                let mut buf = vec![0; len as usize];
+                match stream.try_read(&mut buf.as_mut()) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        if n >= len {
+                            result.extend_from_slice(&buf);
+                            break;
+                        }
+                    }
+                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                        buf.fill(0);
+                        // If the stream is not ready, continue
+                        continue;
+                    }
+                    Err(e) => {
+                        error!("Error reading from vsocket: {}", e);
+                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
+                        return Err(InstanceError::VSock);
+                    }
+                };
+            }
+
+            /*
+               The problem here: The instance at this point is ready, but in some
+               rare cases, firecracker has not initialized the network yet, so
+               request to the instance may go in timeout.
+            */
+
+            /*
             info!("Instance is ready: {}", instance.id);
             // Forward request to instance
             let client = Client::default();
@@ -368,7 +517,7 @@ async fn start_instance(
                             awc::error::SendRequestError::Connect(e) => {
                                 error!("Error in connecting to the instance: {:?}", e);
                                 retries += 1;
-                                sleep(Duration::from_millis(10)).await;
+                                sleep(Duration::from_millis(50)).await;
                                 continue;
                             },
                             awc::error::SendRequestError::Timeout => {
@@ -427,8 +576,7 @@ async fn start_instance(
                     };
                 }
             }
-
-            let body = res.body().await;
+            */
 
             let _ = fc_instance.stop().await;
             let _ = fc_instance.delete().await;
@@ -444,7 +592,7 @@ async fn start_instance(
 
             info!("Instance {} terminated", instance.id);
 
-            Ok(body)
+            Ok(Bytes::from(result))
         }
         Err(e) => {
             error!("Failed to create instance: {:?}", e);
