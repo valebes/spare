@@ -322,7 +322,7 @@ async fn start_instance(
                 }
             }
 
-            // Writs    e payload in the vsock socket
+            // Write payload in the vsock socket
             match &data.payload {
                 Some(payload) => {
                     // Write length of payload
@@ -390,35 +390,41 @@ async fn start_instance(
                     }
                 }
                 None => {
-                    match stream.writable().await {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("Error writing to vsocket: {}", e);
-                            emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder)
-                                .await;
-                            return Err(InstanceError::VSock);
-                        }
-                    };
-                    let buf = [0; 8];
-                    let mut bytes_written = 0;
-                    while bytes_written < 8 {
-                        match stream.try_write(&buf[bytes_written..]) {
-                            Ok(n) => {
-                                bytes_written += n;
-                            }
+                    loop {
+                        match stream.writable().await {
+                            Ok(_) => {}
                             Err(e) => {
                                 error!("Error writing to vsocket: {}", e);
-                                emergency_cleanup(
-                                    db_pool,
-                                    &mut instance,
-                                    &mut fc_instance,
-                                    builder,
-                                )
-                                .await;
+                                emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder)
+                                    .await;
                                 return Err(InstanceError::VSock);
+                            }
+                        };
+                        let buf = [0; 8];
+                        let mut bytes_written = 0;
+                        while bytes_written < 8 {
+                            match stream.try_write(&buf[bytes_written..]) {
+                                Ok(n) => {
+                                    bytes_written += n;
+                                },
+                                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                                    continue;
+                                },
+                                Err(e) => {
+                                    error!("Error writing to vsocket: {}", e);
+                                    emergency_cleanup(
+                                        db_pool,
+                                        &mut instance,
+                                        &mut fc_instance,
+                                        builder,
+                                    )
+                                    .await;
+                                    return Err(InstanceError::VSock);
+                                }
                             }
                         }
                     }
+
                 }
             }
 
@@ -435,7 +441,6 @@ async fn start_instance(
                     }
                 };
 
-                
                 match stream.try_read(&mut len.as_mut()) {
                     Ok(0) => break,
                     Ok(n) => {
@@ -489,7 +494,6 @@ async fn start_instance(
                     }
                 };
             }
-            
 
             /*
                The problem here: The instance at this point is ready, but in some
