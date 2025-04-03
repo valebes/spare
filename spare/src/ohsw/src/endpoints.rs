@@ -476,6 +476,7 @@ async fn start_instance(
 
             let mut buf = vec![0; len];
             loop {
+                error!("Stuck on reading");
                 match stream.readable().await {
                     Ok(_) => {}
                     Err(e) => {
