@@ -291,7 +291,6 @@ async fn start_instance(
                         }
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                        buf.fill(0);
                         retries += 1;
                         // If the stream is not ready, continue
                         continue;
