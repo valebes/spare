@@ -473,7 +473,7 @@ async fn start_instance(
             error!("Reading {} bytes from vsock", len);
             let mut bytes_read: usize = 0;
 
-            let mut buf = vec![0; len];
+            let mut buf = Vec::new();
             loop {
                 error!("Stuck on reading");
                 match stream.readable().await {
