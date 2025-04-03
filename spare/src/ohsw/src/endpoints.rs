@@ -455,7 +455,6 @@ async fn start_instance(
                         bytes_read += n;
                         error!("Read {} bytes from vsock", bytes_read);
                         if bytes_read == 8 {
-                            error!("Read more than 8 bytes from vsock");
                             break;
                         }
                     }
@@ -477,10 +476,19 @@ async fn start_instance(
 
             let mut buf = vec![0; len as usize];
             loop {
+                match stream.readable().await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("Error reading response from vsocket: {}", e);
+                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
+                        return Err(InstanceError::VSock);
+                    }
+                };
                 match stream.try_read(&mut buf.as_mut()) {
                     Ok(0) => break,
                     Ok(n) => {
                         bytes_read += n;
+                        error!("Read {} bytes from vsock [PAYLOAD]", bytes_read);
                         if bytes_read == len {
                             break;
                         }
