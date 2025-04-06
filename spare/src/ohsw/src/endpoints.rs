@@ -388,7 +388,7 @@ async fn start_instance(
                             }
                         }
                         
-                        bytes_written = 0;
+                        let mut bytes_written = 0;
                         while bytes_written < len {
                             match stream.try_write(&payload.as_bytes()[bytes_written..]) {
                                 Ok(n) => {
