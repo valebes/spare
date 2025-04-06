@@ -461,7 +461,7 @@ async fn start_instance(
             let mut buf = vec![0; len];
 
             loop {
-                match stream.readable().await {
+                match timeout(Duration::from_millis(10), stream.readable()).await {
                     Ok(_) => {}
                     Err(e) => {
                         error!("Error reading response from vsocket: {}", e);
