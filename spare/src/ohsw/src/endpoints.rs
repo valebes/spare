@@ -457,9 +457,8 @@ async fn start_instance(
             let len = u64::from_be_bytes(len) as usize;
             info!("Reading {} bytes from vsock", len);
             let mut bytes_read: usize = 0;
-
             let mut buf = vec![0; len];
-            sleep(Duration::from_millis(10)).await;
+
             loop {
                 match stream.readable().await {
                     Ok(_) => {}
@@ -480,7 +479,6 @@ async fn start_instance(
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                         // If the stream is not ready, continue
-                        sleep(Duration::from_millis(10)).await;
                         continue;
                     }
                     Err(e) => {
