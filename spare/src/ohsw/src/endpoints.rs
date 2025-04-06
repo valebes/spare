@@ -337,28 +337,35 @@ async fn start_instance(
                     info!("Try to write payload.");
                     // Write length of payload
                     let len = payload.len();
-
-                    match stream.writable().await {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("Error writing to vsocket: {}", e);
-                            emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder)
-                                .await;
-                            return Err(InstanceError::VSock);
-                        }
-                    };
-
-
                     // Concatenate the length of the payload and the payload
                     let mut buf = vec![0; 8 + payload.len()];
                     buf[0..8].copy_from_slice(&len.to_be_bytes());
                     buf[8..].copy_from_slice(payload.as_bytes());
-
                     let mut bytes_written = 0;
-                    while bytes_written <  buf.len() {
+
+
+                    loop {
+                        match stream.writable().await {
+                            Ok(_) => {}
+                            Err(e) => {
+                                error!("Error writing to vsocket: {}", e);
+                                emergency_cleanup(
+                                    db_pool,
+                                    &mut instance,
+                                    &mut fc_instance,
+                                    builder,
+                                )
+                                .await;
+                                return Err(InstanceError::VSock);
+                            }
+                        };
+
                         match stream.try_write(&buf[bytes_written..]) {
                             Ok(n) => {
                                 bytes_written += n;
+                                if bytes_written == buf.len() {
+                                    break;
+                                }
                             }
                             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                                 continue;
@@ -378,7 +385,7 @@ async fn start_instance(
                     }
 
                     info!("Payload Bytes written: {}.", bytes_written);
-                },
+                }
                 None => {
                     match stream.writable().await {
                         Ok(_) => {}
