@@ -480,6 +480,7 @@ async fn start_instance(
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                         // If the stream is not ready, continue
+                        sleep(Duration::from_millis(10)).await;
                         continue;
                     }
                     Err(e) => {
