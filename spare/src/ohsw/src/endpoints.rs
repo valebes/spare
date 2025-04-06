@@ -370,7 +370,24 @@ async fn start_instance(
                                 }
                             }
                         }
-
+                        break;
+                    }
+                    loop {
+                        match stream.writable().await {
+                            Ok(_) => {}
+                            Err(e) => {
+                                error!("Error writing to vsocket: {}", e);
+                                emergency_cleanup(
+                                    db_pool,
+                                    &mut instance,
+                                    &mut fc_instance,
+                                    builder,
+                                )
+                                .await;
+                                return Err(InstanceError::VSock);
+                            }
+                        }
+                        
                         bytes_written = 0;
                         while bytes_written < len {
                             match stream.try_write(&payload.as_bytes()[bytes_written..]) {
