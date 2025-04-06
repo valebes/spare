@@ -342,8 +342,6 @@ async fn start_instance(
                     buf[0..8].copy_from_slice(&len.to_be_bytes());
                     buf[8..].copy_from_slice(payload.as_bytes());
                     let mut bytes_written = 0;
-
-
                     loop {
                         match stream.writable().await {
                             Ok(_) => {}
@@ -465,7 +463,7 @@ async fn start_instance(
             sleep(Duration::from_millis(10)).await;
 
             loop {
-                match stream.readable().await {
+                match timeout(Duration::from_millis(10), stream.readable()).await {
                     Ok(_) => {}
                     Err(e) => {
                         error!("Error reading response from vsocket: {}", e);
@@ -478,7 +476,7 @@ async fn start_instance(
                     Ok(0) => break,
                     Ok(n) => {
                         bytes_read += n;
-                        if bytes_read >= len {
+                        if bytes_read == len {
                             break;
                         }
                     }
