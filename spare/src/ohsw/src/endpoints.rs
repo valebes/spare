@@ -1,4 +1,12 @@
-use std::{io::{self, Read}, os::fd::AsRawFd, path::Path, result, sync::Arc, time::Duration, vec};
+use std::{
+    io::{self, Read},
+    os::fd::AsRawFd,
+    path::Path,
+    result,
+    sync::Arc,
+    time::Duration,
+    vec,
+};
 
 use actix_web::{
     get, post,
@@ -326,55 +334,32 @@ async fn start_instance(
             // Write payload in the vsock socket
             match &data.payload {
                 Some(payload) => {
+                    info!("Try to write payload.");
                     // Write length of payload
                     let len = payload.len();
                     let mut buf = [0; 8];
                     // Write in the buf the length of the payload
                     buf.copy_from_slice(&len.to_be_bytes());
 
-                    loop {
-                        match stream.writable().await {
-                            Ok(_) => {}
-                            Err(e) => {
-                                error!("Error writing to vsocket: {}", e);
-                                emergency_cleanup(
-                                    db_pool,
-                                    &mut instance,
-                                    &mut fc_instance,
-                                    builder,
-                                )
+                    match stream.writable().await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("Error writing to vsocket: {}", e);
+                            emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder)
                                 .await;
-                                return Err(InstanceError::VSock);
-                            }
-                        };
+                            return Err(InstanceError::VSock);
+                        }
+                    };
 
-                        let mut bytes_written = 0;
-                        while bytes_written < 8 {
-                            match stream.try_write(&buf[bytes_written..]) {
-                                Ok(n) => {
-                                    bytes_written += n;
-                                }
-                                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                                    continue;
-                                }
-                                Err(e) => {
-                                    error!("Error writing to vsocket: {}", e);
-                                    emergency_cleanup(
-                                        db_pool,
-                                        &mut instance,
-                                        &mut fc_instance,
-                                        builder,
-                                    )
-                                    .await;
-                                    return Err(InstanceError::VSock);
-                                }
+                    let mut bytes_written = 0;
+                    while bytes_written < 8 {
+                        match stream.try_write(&buf[bytes_written..]) {
+                            Ok(n) => {
+                                bytes_written += n;
                             }
-                        }
-                        break;
-                    }
-                    loop {
-                        match stream.writable().await {
-                            Ok(_) => {}
+                            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                                continue;
+                            }
                             Err(e) => {
                                 error!("Error writing to vsocket: {}", e);
                                 emergency_cleanup(
@@ -387,33 +372,44 @@ async fn start_instance(
                                 return Err(InstanceError::VSock);
                             }
                         }
-                        
-                        let mut bytes_written = 0;
-                        while bytes_written < len {
-                            match stream.try_write(&payload.as_bytes()[bytes_written..]) {
-                                Ok(n) => {
-                                    bytes_written += n;
-                                }
-                                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                                    continue;
-                                }
-                                Err(e) => {
-                                    error!("Error writing to vsocket: {}", e);
-                                    emergency_cleanup(
-                                        db_pool,
-                                        &mut instance,
-                                        &mut fc_instance,
-                                        builder,
-                                    )
-                                    .await;
-                                    return Err(InstanceError::VSock);
-                                }
+                    }
+                    info!("Payload length: {}", len);
+
+                    match stream.writable().await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("Error writing to vsocket: {}", e);
+                            emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder)
+                                .await;
+                            return Err(InstanceError::VSock);
+                        }
+                    }
+
+                    let mut bytes_written = 0;
+                    while bytes_written < len {
+                        match stream.try_write(&payload.as_bytes()[bytes_written..]) {
+                            Ok(n) => {
+                                bytes_written += n;
+                            }
+                            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                                continue;
+                            }
+                            Err(e) => {
+                                error!("Error writing to vsocket: {}", e);
+                                emergency_cleanup(
+                                    db_pool,
+                                    &mut instance,
+                                    &mut fc_instance,
+                                    builder,
+                                )
+                                .await;
+                                return Err(InstanceError::VSock);
                             }
                         }
-                        break;
                     }
-                }
-                None => loop {
+                    info!("Payload written: {} bytes", payload.len());
+                },
+                None => {
                     match stream.writable().await {
                         Ok(_) => {}
                         Err(e) => {
@@ -446,8 +442,7 @@ async fn start_instance(
                             }
                         }
                     }
-                    break;
-                },
+                }
             }
 
             error!("Waiting for response from vsock");
@@ -468,7 +463,6 @@ async fn start_instance(
                     Ok(0) => break,
                     Ok(n) => {
                         bytes_read += n;
-                        error!("Read {} bytes from vsock", bytes_read);
                         if bytes_read == 8 {
                             break;
                         }
@@ -486,13 +480,13 @@ async fn start_instance(
             }
 
             let len = u64::from_be_bytes(len) as usize;
-            error!("Reading {} bytes from vsock", len);
+            info!("Reading {} bytes from vsock", len);
             let mut bytes_read: usize = 0;
 
             let mut buf = vec![0; len];
 
             sleep(Duration::from_millis(10)).await;
-            
+
             loop {
                 match stream.readable().await {
                     Ok(_) => {}
@@ -510,7 +504,6 @@ async fn start_instance(
                         if bytes_read >= len {
                             break;
                         }
-                        error!("Read {} bytes from vsock [PAYLOAD]", bytes_read);
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                         // If the stream is not ready, continue
@@ -523,7 +516,6 @@ async fn start_instance(
                     }
                 };
             }
-            
 
             /*
                The problem here: The instance at this point is ready, but in some
