@@ -1,7 +1,7 @@
 //! Orchestrator module. It is responsible for managing the local resources and monitoring the remote nodes
 pub mod global;
 mod local_resources;
-use std::sync::{Mutex, RwLock};
+use std::{sync::{Mutex, RwLock}, time::Instant};
 
 use crate::api::{self, invoke::InvokeFunction, resources::Resources};
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -238,7 +238,7 @@ impl Orchestrator {
                                 if cpus.is_some() && memory.is_some() {
                                     warn!("Forwarding request to {}", node.address());
 
-                                    let start = std::time::Instant::now();
+                                    let start = Instant::now();
                                     let body = node.invoke(data.clone()).await;
                                     let elapsed = start.elapsed();
 

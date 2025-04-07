@@ -8,7 +8,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use base64::{engine::general_purpose, Engine};
@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 use tokio::{
     fs,
     sync::Mutex,
-    time::{sleep, Instant},
+    time::{sleep},
 };
 
 mod dataset;
