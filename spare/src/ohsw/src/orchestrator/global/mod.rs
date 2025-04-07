@@ -195,7 +195,7 @@ impl NeighborNodeList {
                 )));
             }
             NeighborNodeStrategy::SmartLatency => {
-                self.nodes.push(NeighborNodeType::Latency(Box::new(
+                self.nodes.push(NeighborNodeType::UpdatableLatency(Box::new(
                     smart_latency::SmartLatency::new(position, address),
                 )));
             }
