@@ -21,10 +21,10 @@ pub async fn read_exact(
             }
             Err(e) => {
                 if e.kind() != std::io::ErrorKind::WouldBlock {
+                    return Err(e);
+                } else {
                     sleep(Duration::from_millis(10)).await;
                     continue;
-                } else {
-                    return Err(e);
                 } 
             }
         }
@@ -51,10 +51,10 @@ pub async fn write_all(
             }
             Err(e) => {
                 if e.kind() != std::io::ErrorKind::WouldBlock {
+                    return Err(e);
+                } else {
                     sleep(Duration::from_millis(10)).await;
                     continue;
-                } else {
-                    return Err(e);
                 }
             }
         }
