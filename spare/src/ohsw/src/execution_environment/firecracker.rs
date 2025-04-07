@@ -40,56 +40,56 @@ impl FirecrackerBuilder {
         memory: i32,
     ) -> Result<FirecrackerInstance, FirepilotError> {
         error!("[DEBUG] Attempt to get lock on network");
-        let mut network = {
-            match self.network.lock() {
-                Ok(network) => network,
-                Err(e) => {
-                    return Err(FirepilotError::Unknown(format!(
-                        "Failed to lock network: {}",
-                        e
-                    )))
-                }
-            }
-        };
-        error!("[DEBUG] Got lock on network");
 
-        let address = network.get();
-        match address {
-            Some(ip) => {
-                info!("Assigned IP address: {}", ip);
-                let create_instance = FirecrackerInstance::new(
-                    self.executable.clone(),
-                    self.kernel.clone(),
-                    image,
-                    vcpus,
-                    memory,
-                    self.bridge.clone(),
-                    ip,
-                    network.get_gateway(),
-                    network.get_netmask(),
-                )
-                .await;
-                match create_instance {
-                    Ok(instance) => {
-                        info!("Created instance with IP address: {}", ip);
-                        return Ok(instance);
-                    }
-                    Err(e) => {
-                        return Err(FirepilotError::Unknown(format!(
-                            "Failed to create instance: {}",
-                            e
-                        )))
-                    }
+        // Scope to release the lock immediately after getting IP and network info
+        let (ip, gateway, netmask) = {
+            let mut network = self.network.lock().map_err(|e| {
+                FirepilotError::Unknown(format!("Failed to lock network: {}", e))
+            })?;
+
+            error!("[DEBUG] Got lock on network");
+
+            match network.get() {
+                Some(ip) => {
+                    let gateway = network.get_gateway();
+                    let netmask = network.get_netmask();
+                    info!("Assigned IP address: {}", ip);
+                    (ip, gateway, netmask)
+                }
+                None => {
+                    return Err(FirepilotError::Unknown(
+                        "No more addresses available".to_string(),
+                    ))
                 }
             }
-            None => {
-                return Err(FirepilotError::Unknown(
-                    "No more addresses available".to_string(),
-                ))
+        }; 
+
+        let create_instance = FirecrackerInstance::new(
+            self.executable.clone(),
+            self.kernel.clone(),
+            image,
+            vcpus,
+            memory,
+            self.bridge.clone(),
+            ip,
+            gateway,
+            netmask,
+        )
+        .await;
+
+        match create_instance {
+            Ok(instance) => {
+                info!("Created instance with IP address: {}", ip);
+                Ok(instance)
             }
+            Err(e) => Err(FirepilotError::Unknown(format!(
+                "Failed to create instance: {}",
+                e
+            ))),
         }
     }
 }
+
 
 pub enum FirecrackerInstanceCreationError {
     /// Error creating the instance.
