@@ -1,8 +1,6 @@
 use std::{
-    io::{self, Read},
     os::fd::AsRawFd,
     path::Path,
-    result,
     sync::Arc,
     time::Duration,
     vec,
@@ -17,12 +15,11 @@ use actix_web::{
     web::{self, Bytes},
     HttpRequest, HttpResponse, Responder,
 };
-use awc::{error::PayloadError, Client};
 use log::{error, info, warn};
 use sqlx::{sqlite, Pool};
 
 use crate::{
-    api::{invoke::InvokeFunction, payload::Payload},
+    api::invoke::InvokeFunction,
     db::{self, models::Instance},
     execution_environment::firecracker::{FirecrackerBuilder, FirecrackerInstance},
     orchestrator::{self},
@@ -299,7 +296,7 @@ async fn start_instance(
             // Write payload in the vsock socket
             match &data.payload {
                 Some(payload) => {
-                    info!("Try to write payload.");
+                    info!("Sending payload to instance: {}", instance.id);
                     // Write length of payload
                     let len = payload.len();
                     // Concatenate the length of the payload and the payload
@@ -315,7 +312,6 @@ async fn start_instance(
                             return Err(InstanceError::VSock);
                         }
                     }
-                    info!("Payload written: {} bytes", payload.len());
                 }
                 None => {
                     let buf = [0; 8];
@@ -332,6 +328,7 @@ async fn start_instance(
             }
 
             // Read the length of the response
+            info!("Reading length of response from instance: {}", instance.id);
             let mut len = [0; 8];
             match read_exact(&mut stream, &mut len).await {
                 Ok(_) => {}
@@ -343,7 +340,10 @@ async fn start_instance(
             }
 
             let len = u64::from_be_bytes(len) as usize;
-            info!("Reading {} bytes from vsock", len);
+            info!(
+                "Length of response: {}, for instance {}",
+                len, instance.id
+            );
             let mut buf = vec![0; len];
             // Read the response
             match read_exact(&mut stream, &mut buf).await {
@@ -354,7 +354,8 @@ async fn start_instance(
                     return Err(InstanceError::VSock);
                 }
             }
-            info!("Read {} bytes from vsock", buf.len());
+
+            info!("Successfully read response from instance: {}", instance.id);
 
             /*
                The problem here: The instance at this point is ready, but in some
@@ -470,7 +471,6 @@ async fn start_instance(
                 .release(fc_instance.get_address());
 
             info!("Instance {} terminated", instance.id);
-            info!("Result: {} bytes. Instance {}.", buf.len(), instance.id);
 
             Ok(Bytes::from(buf))
         }
@@ -483,6 +483,8 @@ async fn start_instance(
 
 #[cfg(test)]
 mod test {
+    use awc::Client;
+
     use crate::net::addresses::Addresses;
     use std::fs::{self, OpenOptions};
     use std::io::{Read, Write};

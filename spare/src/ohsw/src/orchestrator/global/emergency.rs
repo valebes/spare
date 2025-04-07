@@ -34,6 +34,7 @@ impl NeighborNode for Emergency {
     }
 
     fn set_emergency(&mut self, emergency: bool) {
+        let _ = emergency;
         panic!("Emergency node cannot be set as emergency");
     }
 }
