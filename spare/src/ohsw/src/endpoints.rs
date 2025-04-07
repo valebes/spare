@@ -25,7 +25,8 @@ use crate::{
     api::{invoke::InvokeFunction, payload::Payload},
     db::{self, models::Instance},
     execution_environment::firecracker::{FirecrackerBuilder, FirecrackerInstance},
-    orchestrator::{self}, utils::socket::{read_exact, write_all},
+    orchestrator::{self},
+    utils::socket::{read_exact, write_all},
 };
 
 /// Error types for the instance
@@ -276,7 +277,7 @@ async fn start_instance(
                     return Err(InstanceError::VSock);
                 }
             }
-  
+
             let message: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buf);
 
             info!(
@@ -305,7 +306,7 @@ async fn start_instance(
                     let mut buf = vec![0; 8 + payload.len()];
                     buf[0..8].copy_from_slice(&len.to_be_bytes());
                     buf[8..].copy_from_slice(payload.as_bytes());
-                    match write_all(&mut stream, &buf) .await {
+                    match write_all(&mut stream, &buf).await {
                         Ok(_) => {}
                         Err(e) => {
                             error!("Error writing to vsocket: {}", e);
@@ -469,7 +470,7 @@ async fn start_instance(
                 .release(fc_instance.get_address());
 
             info!("Instance {} terminated", instance.id);
-            error!("Bytes: {}", buf.len());
+            info!("Result: {} bytes. Instance {}.", buf.len(), instance.id);
 
             Ok(Bytes::from(buf))
         }
