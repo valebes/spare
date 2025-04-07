@@ -316,10 +316,12 @@ impl NeighborNodeList {
         self.nodes.sort_by(|a, b| {
             let distance_a = match a {
                 NeighborNodeType::Distance(node) => node.distance(current),
+                NeighborNodeType::UpdatableLatency(node) => node.distance(current),
                 _ => panic!("Node is not a distance node"),
             };
             let distance_b = match b {
                 NeighborNodeType::Distance(node) => node.distance(current),
+                NeighborNodeType::UpdatableLatency(node) => node.distance(current),
                 _ => panic!("Node is not a distance node"),
             };
             distance_a.partial_cmp(&distance_b).unwrap()
