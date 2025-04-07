@@ -8,7 +8,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use awc::{body::BoxBody, Client};
 use global::{
     emergency::Emergency, geo_distance::GeoDistance, identity::Node, Distance, NeighborNode,
-    NeighborNodeList, NeighborNodeStrategy, NeighborNodeType, UpdatableLatency,
+    NeighborNodeList, NeighborNodeStrategy, NeighborNodeType,
 };
 use local_resources::LocalResources;
 use log::{error, info, warn};
@@ -204,7 +204,7 @@ impl Orchestrator {
         for i in 0..self.number_of_nodes() {
             warn!("Checking node: {}", i);
             match self.get_remote_nth_node(&mut self.identity.clone(), i) {
-                Some(mut node) => {
+                Some(node) => {
                     // Do not forward request to origin
                     if node
                         .address()
@@ -237,41 +237,40 @@ impl Orchestrator {
                                 // If resources are available, forward request
                                 if cpus.is_some() && memory.is_some() {
                                     warn!("Forwarding request to {}", node.address());
+
                                     let start = std::time::Instant::now();
                                     let body = node.invoke(data.clone()).await;
-                                    let latency = start.elapsed().as_millis() as f64;
+                                    let elapsed = start.elapsed();
+
+                                    info!(
+                                        "Request to {} took: {} ms",
+                                        node.address(),
+                                        elapsed.as_millis()
+                                    );
+
                                     match body {
                                         Ok(body) => {
                                             error!(
                                                 "Successfully forwarded request to {}",
                                                 node.address()
                                             );
-
-                                            // ----------------- //
-                                            /// If SmartLatency is used, update the latency
-                                            let mut node_list =
-                                                self.global_resources.write().unwrap();
-                                            if node_list.strategy()
-                                                == NeighborNodeStrategy::SmartLatency
-                                            {
-                                                let mut n_ref =
-                                                    self.contains(&mut node, &mut node_list);
-                                                match n_ref {
-                                                    Some(NeighborNodeType::UpdatableLatency(n)) => {
-                                                        n.update_latency(latency);
-                                                    }
-                                                    Some(_) => {
-                                                        error!(
-                                                            "Node is not of type UpdatableLatency"
-                                                        );
-                                                    }
-                                                    None => {
-                                                        error!("Node not found in the list");
+                                            match node {
+                                                NeighborNodeType::Latency(node) => {
+                                                    let mut node_list =
+                                                        self.global_resources.write().unwrap();
+                                                    let n_ref = self.contains(&mut NeighborNodeType::Latency(node), &mut node_list).unwrap();
+                                                    match n_ref {
+                                                        NeighborNodeType::Latency(n_ref) => {
+                                                            n_ref.update_latency(
+                                                                elapsed.as_millis() as f64,
+                                                            );
+                                                        }
+                                                        _ => {}
                                                     }
                                                 }
+    
+                                                _ => {}
                                             }
-                                            // ----------------- //
-
                                             return HttpResponse::Ok().body(body);
                                         }
                                         Err(e) => {

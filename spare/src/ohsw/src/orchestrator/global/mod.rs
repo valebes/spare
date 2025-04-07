@@ -45,8 +45,6 @@ pub trait Distance {
 pub trait Latency {
     /// Get the latency between two points
     fn latency(&mut self, other: &mut dyn NeighborNodeWithLatency) -> f64;
-}
-pub trait UpdatableLatency {
     /// Update the latency of the node
     fn update_latency(&mut self, new_latency: f64);
 }
@@ -66,22 +64,10 @@ impl<T: NeighborNode + Distance + Latency + DynClone + Send + Sync> NeighborNode
 
 dyn_clone::clone_trait_object!(NeighborNodeWithLatency);
 
-/// Trait that represents a Neighbor Node with updatable Latency
-pub trait NeighborNodeWithUpdatableLatency:
-    NeighborNode + Distance + UpdatableLatency + Latency + DynClone + Send + Sync
-{
-}
-impl<T: NeighborNode + Distance + UpdatableLatency + Latency + DynClone + Send + Sync>
-    NeighborNodeWithUpdatableLatency for T
-{
-}
-dyn_clone::clone_trait_object!(NeighborNodeWithUpdatableLatency);
-
 #[derive(Clone)]
 pub enum NeighborNodeType {
     Distance(Box<dyn NeighborNodeWithDistance>),
     Latency(Box<dyn NeighborNodeWithLatency>),
-    UpdatableLatency(Box<dyn NeighborNodeWithUpdatableLatency>),
 }
 impl NeighborNodeType {
     pub async fn invoke(&self, data: InvokeFunction) -> Result<web::Bytes, InvokeError> {
@@ -114,7 +100,6 @@ impl NeighborNode for NeighborNodeType {
         match self {
             NeighborNodeType::Distance(node) => node.address(),
             NeighborNodeType::Latency(node) => node.address(),
-            NeighborNodeType::UpdatableLatency(node) => node.address(),
         }
     }
 
@@ -122,7 +107,6 @@ impl NeighborNode for NeighborNodeType {
         match self {
             NeighborNodeType::Distance(node) => node.position(),
             NeighborNodeType::Latency(node) => node.position(),
-            NeighborNodeType::UpdatableLatency(node) => node.position(),
         }
     }
 
@@ -130,7 +114,6 @@ impl NeighborNode for NeighborNodeType {
         match self {
             NeighborNodeType::Distance(node) => node.emergency(),
             NeighborNodeType::Latency(node) => node.emergency(),
-            NeighborNodeType::UpdatableLatency(node) => node.emergency(),
         }
     }
 
@@ -138,7 +121,6 @@ impl NeighborNode for NeighborNodeType {
         match self {
             NeighborNodeType::Distance(node) => node.set_emergency(emergency),
             NeighborNodeType::Latency(node) => node.set_emergency(emergency),
-            NeighborNodeType::UpdatableLatency(node) => node.set_emergency(emergency),
         }
     }
 }
@@ -195,7 +177,7 @@ impl NeighborNodeList {
                 )));
             }
             NeighborNodeStrategy::SmartLatency => {
-                self.nodes.push(NeighborNodeType::UpdatableLatency(Box::new(
+                self.nodes.push(NeighborNodeType::Latency(Box::new(
                     smart_latency::SmartLatency::new(position, address),
                 )));
             }
@@ -265,6 +247,7 @@ impl NeighborNodeList {
                 });
             }
             NeighborNodeStrategy::SmartLatency => {
+                // If we have an emergency, we need to sort by latency
                 if self.emergency.is_some() {
                     self.sort_by_latency(&mut smart_latency::SmartLatency {
                         position: current.position(),
@@ -273,15 +256,8 @@ impl NeighborNodeList {
                         latency: 0.0,
                         sample_count: 0,
                     });
-                } else {
-                    self.sort_by_distance(&mut smart_latency::SmartLatency {
-                        position: current.position(),
-                        address: current.address(),
-                        emergency: current.emergency(),
-                        latency: 0.0,
-                        sample_count: 0,
-                    });
                 }
+                
             }
         }
     }
@@ -316,12 +292,18 @@ impl NeighborNodeList {
         self.nodes.sort_by(|a, b| {
             let distance_a = match a {
                 NeighborNodeType::Distance(node) => node.distance(current),
-                NeighborNodeType::UpdatableLatency(node) => node.distance(current),
+                NeighborNodeType::Latency(node) => {
+                    warn!("Sorting by distance, but node is a latency node");
+                    node.distance(current)
+                }
                 _ => panic!("Node is not a distance node"),
             };
             let distance_b = match b {
                 NeighborNodeType::Distance(node) => node.distance(current),
-                NeighborNodeType::UpdatableLatency(node) => node.distance(current),
+                NeighborNodeType::Latency(node) => {
+                    warn!("Sorting by distance, but node is a latency node");
+                    node.distance(current)
+                }
                 _ => panic!("Node is not a distance node"),
             };
             distance_a.partial_cmp(&distance_b).unwrap()

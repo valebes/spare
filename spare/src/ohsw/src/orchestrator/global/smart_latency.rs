@@ -2,7 +2,7 @@ use log::error;
 use longitude::Location;
 use rand::thread_rng;
 
-use super::{NeighborNode, NeighborNodeWithLatency, NeighborNodeWithUpdatableLatency};
+use super::{NeighborNode, NeighborNodeWithLatency};
 
 /// Neighbour Node Selection strategy in which latency is estimated
 /// and updated over time using a running average.
@@ -45,16 +45,6 @@ impl NeighborNode for SmartLatency {
     }
 }
 
-impl super::UpdatableLatency for SmartLatency {
-    fn update_latency(&mut self, new_latency: f64) {
-        if self.sample_count == 0 {
-            self.latency = 0.0;
-        }
-        self.sample_count += 1;
-        self.latency += (new_latency - self.latency) / self.sample_count as f64;
-        error!("Updated latency: {}", self.latency);
-    }
-}
 
 impl super::Distance for SmartLatency {
     fn distance(&self, node: &mut dyn NeighborNode) -> f64 {
@@ -67,5 +57,13 @@ impl super::Distance for SmartLatency {
 impl super::Latency for SmartLatency {
     fn latency(&mut self, _node: &mut dyn NeighborNodeWithLatency) -> f64 {
         self.latency
+    }
+    fn update_latency(&mut self, new_latency: f64) {
+        if self.sample_count == 0 {
+            self.latency = 0.0;
+        }
+        self.sample_count += 1;
+        self.latency += (new_latency - self.latency) / self.sample_count as f64;
+        error!("Updated latency: {}", self.latency);
     }
 }
