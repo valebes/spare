@@ -25,7 +25,7 @@ use crate::{
     api::{invoke::InvokeFunction, payload::Payload},
     db::{self, models::Instance},
     execution_environment::firecracker::{FirecrackerBuilder, FirecrackerInstance},
-    orchestrator::{self},
+    orchestrator::{self}, utils::socket::{read_exact, write_all},
 };
 
 /// Error types for the instance
@@ -243,7 +243,7 @@ async fn start_instance(
 
             info!("Starting instance: {} ip: {}", instance.id, instance.ip);
 
-            let stream = match timeout(Duration::from_millis(500), socket.accept()).await {
+            let mut stream = match timeout(Duration::from_millis(500), socket.accept()).await {
                 Ok(res) => match res {
                     Ok((stream, _)) => stream,
                     Err(e) => {
@@ -266,54 +266,17 @@ async fn start_instance(
                 instance.id
             );
 
-            let mut buf = [0; 1024];
-            let max_retries = 100;
-            let mut retries = 0;
-            let mut bytes_read = 0;
-            loop {
-                if retries > max_retries {
-                    error!("Timeout reading from vsocket: {}", stream.as_raw_fd());
+            let mut buf = [0; 5];
+            // Read from the vsock socket
+            match read_exact(&mut stream, &mut buf).await {
+                Ok(_) => {}
+                Err(e) => {
+                    error!("Error reading from vsocket: {}", e);
                     emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
-                    return Err(InstanceError::VSockTimeout);
+                    return Err(InstanceError::VSock);
                 }
-                match stream.readable().await {
-                    Ok(_) => {}
-                    Err(_) => {
-                        error!(
-                            "Error reading from vsocket: {}. The socket is not readable.",
-                            stream.as_raw_fd()
-                        );
-                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
-                        return Err(InstanceError::VSock);
-                    }
-                };
-                info!(
-                    "Socket readable: {}, for instance {}",
-                    stream.as_raw_fd(),
-                    instance.id
-                );
-                match stream.try_read(&mut buf.as_mut()) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        bytes_read += n;
-                        if bytes_read == 5 {
-                            break;
-                        }
-                    }
-                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                        retries += 1;
-                        // If the stream is not ready, continue
-                        sleep(Duration::from_millis(10)).await;
-                        continue;
-                    }
-                    Err(e) => {
-                        error!("Error reading from vsocket: {}", e);
-                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
-                        return Err(InstanceError::VSock);
-                    }
-                };
             }
-
+  
             let message: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buf);
 
             info!(
@@ -342,52 +305,7 @@ async fn start_instance(
                     let mut buf = vec![0; 8 + payload.len()];
                     buf[0..8].copy_from_slice(&len.to_be_bytes());
                     buf[8..].copy_from_slice(payload.as_bytes());
-                    let mut bytes_written = 0;
-                    loop {
-                        match stream.writable().await {
-                            Ok(_) => {}
-                            Err(e) => {
-                                error!("Error writing to vsocket: {}", e);
-                                emergency_cleanup(
-                                    db_pool,
-                                    &mut instance,
-                                    &mut fc_instance,
-                                    builder,
-                                )
-                                .await;
-                                return Err(InstanceError::VSock);
-                            }
-                        };
-
-                        match stream.try_write(&buf[bytes_written..]) {
-                            Ok(n) => {
-                                bytes_written += n;
-                                if bytes_written == buf.len() {
-                                    break;
-                                }
-                            }
-                            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                                sleep(Duration::from_millis(10)).await;
-                                continue;
-                            }
-                            Err(e) => {
-                                error!("Error writing to vsocket: {}", e);
-                                emergency_cleanup(
-                                    db_pool,
-                                    &mut instance,
-                                    &mut fc_instance,
-                                    builder,
-                                )
-                                .await;
-                                return Err(InstanceError::VSock);
-                            }
-                        }
-                    }
-
-                    info!("Payload Bytes written: {}.", bytes_written);
-                }
-                None => {
-                    match stream.writable().await {
+                    match write_all(&mut stream, &buf) .await {
                         Ok(_) => {}
                         Err(e) => {
                             error!("Error writing to vsocket: {}", e);
@@ -395,104 +313,47 @@ async fn start_instance(
                                 .await;
                             return Err(InstanceError::VSock);
                         }
-                    };
+                    }
+                    info!("Payload written: {} bytes", payload.len());
+                }
+                None => {
                     let buf = [0; 8];
-                    let mut bytes_written = 0;
-                    while bytes_written < 8 {
-                        match stream.try_write(&buf[bytes_written..]) {
-                            Ok(n) => {
-                                bytes_written += n;
-                            }
-                            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                                sleep(Duration::from_millis(10)).await;
-                                continue;
-                            }
-                            Err(e) => {
-                                error!("Error writing to vsocket: {}", e);
-                                emergency_cleanup(
-                                    db_pool,
-                                    &mut instance,
-                                    &mut fc_instance,
-                                    builder,
-                                )
+                    match write_all(&mut stream, &buf).await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("Error writing to vsocket: {}", e);
+                            emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder)
                                 .await;
-                                return Err(InstanceError::VSock);
-                            }
+                            return Err(InstanceError::VSock);
                         }
                     }
                 }
             }
 
-            error!("Waiting for response from vsock");
-
+            // Read the length of the response
             let mut len = [0; 8];
-            let mut bytes_read: usize = 0;
-            // Retrieve back the result
-            loop {
-                match stream.readable().await {
-                    Ok(_) => {}
-                    Err(e) => {
-                        error!("Error reading response from vsocket: {}", e);
-                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
-                        return Err(InstanceError::VSock);
-                    }
-                };
-                match stream.try_read(&mut len[bytes_read..]) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        bytes_read += n;
-                        if bytes_read == 8 {
-                            break;
-                        }
-                    }
-                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                        // If the stream is not ready, continue
-                        sleep(Duration::from_millis(10)).await;
-                        continue;
-                    }
-                    Err(e) => {
-                        error!("Error reading from vsocket: {}", e);
-                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
-                        return Err(InstanceError::VSock);
-                    }
-                };
+            match read_exact(&mut stream, &mut len).await {
+                Ok(_) => {}
+                Err(e) => {
+                    error!("Error reading from vsocket: {}", e);
+                    emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
+                    return Err(InstanceError::VSock);
+                }
             }
 
             let len = u64::from_be_bytes(len) as usize;
             info!("Reading {} bytes from vsock", len);
-            let mut bytes_read: usize = 0;
             let mut buf = vec![0; len];
-
-            loop {
-                match stream.readable().await {
-                    Ok(_) => {}
-                    Err(e) => {
-                        error!("Error reading response from vsocket: {}", e);
-                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
-                        return Err(InstanceError::VSock);
-                    }
-                };
-
-                match stream.try_read(&mut buf[bytes_read..]) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        bytes_read += n;
-                        if bytes_read == len {
-                            break;
-                        }
-                    }
-                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                        // If the stream is not ready, continue
-                        sleep(Duration::from_millis(10)).await;
-                        continue;
-                    }
-                    Err(e) => {
-                        error!("Error reading from vsocket: {}", e);
-                        emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
-                        return Err(InstanceError::VSock);
-                    }
-                };
+            // Read the response
+            match read_exact(&mut stream, &mut buf).await {
+                Ok(_) => {}
+                Err(e) => {
+                    error!("Error reading from vsocket: {}", e);
+                    emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
+                    return Err(InstanceError::VSock);
+                }
             }
+            info!("Read {} bytes from vsock", buf.len());
 
             /*
                The problem here: The instance at this point is ready, but in some
