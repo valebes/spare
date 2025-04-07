@@ -1,4 +1,4 @@
-use std::{net::Ipv4Addr, sync::Mutex};
+use std::{error, net::Ipv4Addr, sync::Mutex};
 
 use crate::net::{
     addresses::Addresses,
@@ -39,6 +39,7 @@ impl FirecrackerBuilder {
         vcpus: i32,
         memory: i32,
     ) -> Result<FirecrackerInstance, FirepilotError> {
+        error!("Creating new instance [DEBUG]");
         let mut network = {
             match self.network.lock() {
                 Ok(network) => network,
@@ -50,6 +51,7 @@ impl FirecrackerBuilder {
                 }
             }
         };
+        error!("Locked network [DEBUG]");
 
         let address = network.get();
         match address {
