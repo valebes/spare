@@ -39,6 +39,7 @@ impl FirecrackerBuilder {
         vcpus: i32,
         memory: i32,
     ) -> Result<FirecrackerInstance, FirepilotError> {
+        error!("[DEBUG] Attempt to get lock on network");
         let mut network = {
             match self.network.lock() {
                 Ok(network) => network,
@@ -50,6 +51,7 @@ impl FirecrackerBuilder {
                 }
             }
         };
+        error!("[DEBUG] Got lock on network");
 
         let address = network.get();
         match address {
