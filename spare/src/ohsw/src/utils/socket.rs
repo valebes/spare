@@ -35,7 +35,7 @@ pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::i
     let mut total_written = 0;
 
     loop {
-        error!("Im stucking reading");
+        error!("Im stucking writing");
         stream.writable().await?;
 
         match stream.try_write(&buf[total_written..]) {
