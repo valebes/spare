@@ -59,7 +59,7 @@ struct Args {
     iterations: i32,
 
     #[arg(short, long, default_value = "")]
-    payload: String
+    payload: String,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -109,11 +109,11 @@ async fn test(
     iterations: i32,
     nodes: Vec<Node>,
     function_path: &String,
-    payload: &Option<String>
+    payload: &Option<String>,
 ) -> (u128, usize, usize, Vec<u128>) {
-    let request_per_epoch = ((4 * nodes.len()) as f32 * 0.6).floor() as usize; // 70% utilization
+    let request_per_epoch = ((8 * nodes.len()) as f32 * 0.6).floor() as usize; // 60% utilization
 
-    let inter_arrival = 30; // ms
+    let inter_arrival = 11; // ms
     let mut latency_per_epoch = Vec::new();
     let latency = Arc::new(Mutex::new(Vec::new()));
     let completed = Arc::new(AtomicUsize::new(0));
@@ -350,13 +350,12 @@ async fn main() {
     // Wait for nodes to be ready
     sleep(Duration::from_secs(5)).await;
 
-
     // Load the payload, if any
     let payload = if args.payload != "" {
-         let file = File::open(args.payload).unwrap();
-         let mut reader = BufReader::new(file);
-         let mut content = Vec::new();
-         reader.read_to_end(&mut content).unwrap();
+        let file = File::open(args.payload).unwrap();
+        let mut reader = BufReader::new(file);
+        let mut content = Vec::new();
+        reader.read_to_end(&mut content).unwrap();
 
         let encoded = general_purpose::STANDARD.encode(content);
 
@@ -364,7 +363,7 @@ async fn main() {
     } else {
         None
     };
-    
+
     // EXPERIMENT
     println!("Starting test with {} nodes", args.number_of_nodes);
     println!("NORMAL SCENARIO");
