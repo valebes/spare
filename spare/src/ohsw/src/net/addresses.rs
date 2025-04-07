@@ -1,5 +1,5 @@
-use std::net::Ipv4Addr;
 use ipnetwork::{IpNetworkError, Ipv4Network};
+use std::net::Ipv4Addr;
 
 /// A struct that manages the allocation of IP addresses.
 #[derive(Clone)]
@@ -60,7 +60,9 @@ mod tests {
         let mut addresses = Addresses::new(addr, 24).unwrap();
 
         for i in 1..255 {
-            if i == 255 - 1 { break; } // Skip broadcast
+            if i == 255 - 1 {
+                break;
+            } // Skip broadcast
             assert_eq!(addresses.get(), Some(Ipv4Addr::new(192, 168, 1, i)));
         }
 

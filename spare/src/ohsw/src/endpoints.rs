@@ -1,10 +1,4 @@
-use std::{
-    os::fd::AsRawFd,
-    path::Path,
-    sync::Arc,
-    time::Duration,
-    vec,
-};
+use std::{os::fd::AsRawFd, path::Path, sync::Arc, time::Duration, vec};
 
 use actix_web::{
     get, post,
@@ -171,7 +165,6 @@ async fn start_instance(
         7) Delete instance
     */
     let builder = firecracker_builder;
-
 
     error!("[DEBUG] Starting instance: {}", data.function);
     // Create new instance
@@ -344,10 +337,7 @@ async fn start_instance(
             }
 
             let len = u64::from_be_bytes(len) as usize;
-            info!(
-                "Length of response: {}, for instance {}",
-                len, instance.id
-            );
+            info!("Length of response: {}, for instance {}", len, instance.id);
             let mut buf = vec![0; len];
             // Read the response
             match read_exact(&mut stream, &mut buf).await {

@@ -11,6 +11,7 @@ pub mod emergency;
 pub mod geo_distance;
 pub mod identity;
 pub mod simple_cellular;
+pub mod smart_latency;
 
 /// Enum that represents the different strategies
 /// available for the Neighbor Node Selection
@@ -24,6 +25,9 @@ pub enum NeighborNodeStrategy {
     /// latency between two nodes connected through the
     /// same base station.
     SimpleCellular,
+    /// Strategy that uses a smart model to consider both
+    /// distance and latency to select the best node.
+    SmartLatency,
 }
 
 /// Trait that represents a Neighbor Node
@@ -42,6 +46,10 @@ pub trait Latency {
     /// Get the latency between two points
     fn latency(&mut self, other: &mut dyn NeighborNodeWithLatency) -> f64;
 }
+pub trait UpdatableLatency {
+    /// Update the latency of the node
+    fn update_latency(&mut self, new_latency: f64);
+}
 
 /// Trait that represents a Neighbor Node with distance
 pub trait NeighborNodeWithDistance: NeighborNode + Distance + DynClone + Send + Sync {}
@@ -58,10 +66,22 @@ impl<T: NeighborNode + Distance + Latency + DynClone + Send + Sync> NeighborNode
 
 dyn_clone::clone_trait_object!(NeighborNodeWithLatency);
 
+/// Trait that represents a Neighbor Node with updatable Latency
+pub trait NeighborNodeWithUpdatableLatency:
+    NeighborNode + Distance + UpdatableLatency + Latency + DynClone + Send + Sync
+{
+}
+impl<T: NeighborNode + Distance + UpdatableLatency + Latency + DynClone + Send + Sync>
+    NeighborNodeWithUpdatableLatency for T
+{
+}
+dyn_clone::clone_trait_object!(NeighborNodeWithUpdatableLatency);
+
 #[derive(Clone)]
 pub enum NeighborNodeType {
     Distance(Box<dyn NeighborNodeWithDistance>),
     Latency(Box<dyn NeighborNodeWithLatency>),
+    UpdatableLatency(Box<dyn NeighborNodeWithUpdatableLatency>),
 }
 impl NeighborNodeType {
     pub async fn invoke(&self, data: InvokeFunction) -> Result<web::Bytes, InvokeError> {
@@ -94,6 +114,7 @@ impl NeighborNode for NeighborNodeType {
         match self {
             NeighborNodeType::Distance(node) => node.address(),
             NeighborNodeType::Latency(node) => node.address(),
+            NeighborNodeType::UpdatableLatency(node) => node.address(),
         }
     }
 
@@ -101,6 +122,7 @@ impl NeighborNode for NeighborNodeType {
         match self {
             NeighborNodeType::Distance(node) => node.position(),
             NeighborNodeType::Latency(node) => node.position(),
+            NeighborNodeType::UpdatableLatency(node) => node.position(),
         }
     }
 
@@ -108,6 +130,7 @@ impl NeighborNode for NeighborNodeType {
         match self {
             NeighborNodeType::Distance(node) => node.emergency(),
             NeighborNodeType::Latency(node) => node.emergency(),
+            NeighborNodeType::UpdatableLatency(node) => node.emergency(),
         }
     }
 
@@ -115,6 +138,7 @@ impl NeighborNode for NeighborNodeType {
         match self {
             NeighborNodeType::Distance(node) => node.set_emergency(emergency),
             NeighborNodeType::Latency(node) => node.set_emergency(emergency),
+            NeighborNodeType::UpdatableLatency(node) => node.set_emergency(emergency),
         }
     }
 }
@@ -168,6 +192,11 @@ impl NeighborNodeList {
             NeighborNodeStrategy::SimpleCellular => {
                 self.nodes.push(NeighborNodeType::Latency(Box::new(
                     simple_cellular::SimpleCellular::new(position, address),
+                )));
+            }
+            NeighborNodeStrategy::SmartLatency => {
+                self.nodes.push(NeighborNodeType::Latency(Box::new(
+                    smart_latency::SmartLatency::new(position, address),
                 )));
             }
         }
@@ -234,6 +263,25 @@ impl NeighborNodeList {
                     latency: 0.0,
                     last_update: std::time::Instant::now(),
                 });
+            }
+            NeighborNodeStrategy::SmartLatency => {
+                if self.emergency.is_some() {
+                    self.sort_by_latency(&mut smart_latency::SmartLatency {
+                        position: current.position(),
+                        address: current.address(),
+                        emergency: current.emergency(),
+                        latency: 0.0,
+                        sample_count: 0,
+                    });
+                } else {
+                    self.sort_by_distance(&mut smart_latency::SmartLatency {
+                        position: current.position(),
+                        address: current.address(),
+                        emergency: current.emergency(),
+                        latency: 0.0,
+                        sample_count: 0,
+                    });
+                }
             }
         }
     }

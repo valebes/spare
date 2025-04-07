@@ -41,9 +41,10 @@ impl FirecrackerBuilder {
     ) -> Result<FirecrackerInstance, FirepilotError> {
         // Scope to release the lock immediately after getting IP and network info
         let (ip, gateway, netmask) = {
-            let mut network = self.network.lock().map_err(|e| {
-                FirepilotError::Unknown(format!("Failed to lock network: {}", e))
-            })?;
+            let mut network = self
+                .network
+                .lock()
+                .map_err(|e| FirepilotError::Unknown(format!("Failed to lock network: {}", e)))?;
 
             match network.get() {
                 Some(ip) => {
@@ -58,7 +59,7 @@ impl FirecrackerBuilder {
                     ))
                 }
             }
-        }; 
+        };
 
         let create_instance = FirecrackerInstance::new(
             self.executable.clone(),
@@ -85,7 +86,6 @@ impl FirecrackerBuilder {
         }
     }
 }
-
 
 pub enum FirecrackerInstanceCreationError {
     /// Error creating the instance.

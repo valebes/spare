@@ -8,7 +8,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use awc::{body::BoxBody, Client};
 use global::{
     emergency::Emergency, geo_distance::GeoDistance, identity::Node, Distance, NeighborNode,
-    NeighborNodeList, NeighborNodeStrategy, NeighborNodeType,
+    NeighborNodeList, NeighborNodeStrategy, NeighborNodeType, UpdatableLatency,
 };
 use local_resources::LocalResources;
 use log::{error, info, warn};
@@ -55,6 +55,7 @@ impl Orchestrator {
             match strategy_str.as_str() {
                 "SimpleCellular" => strategy = NeighborNodeStrategy::SimpleCellular,
                 "GeoDistance" => strategy = NeighborNodeStrategy::GeoDistance,
+                "SmartLatency" => strategy = NeighborNodeStrategy::SmartLatency,
                 _ => error!("Unknown strategy: {}.", strategy_str),
             }
         }
@@ -134,7 +135,7 @@ impl Orchestrator {
 
     /// Given a node, find it in the list and return a mutable reference to it
     pub fn contains<'a>(
-        &mut self,
+        &self,
         node: &mut NeighborNodeType,
         node_list: &'a mut NeighborNodeList,
     ) -> Option<&'a mut NeighborNodeType> {
@@ -157,6 +158,9 @@ impl Orchestrator {
         // Check the strategy
         match node_list.strategy() {
             NeighborNodeStrategy::SimpleCellular => {
+                node_list.sort(identity);
+            }
+            NeighborNodeStrategy::SmartLatency => {
                 node_list.sort(identity);
             }
             _ => {} // Already sorted
@@ -200,7 +204,7 @@ impl Orchestrator {
         for i in 0..self.number_of_nodes() {
             warn!("Checking node: {}", i);
             match self.get_remote_nth_node(&mut self.identity.clone(), i) {
-                Some(node) => {
+                Some(mut node) => {
                     // Do not forward request to origin
                     if node
                         .address()
@@ -233,19 +237,48 @@ impl Orchestrator {
                                 // If resources are available, forward request
                                 if cpus.is_some() && memory.is_some() {
                                     warn!("Forwarding request to {}", node.address());
+                                    let start = std::time::Instant::now();
                                     let body = node.invoke(data.clone()).await;
+                                    let latency = start.elapsed().as_millis() as f64;
                                     match body {
                                         Ok(body) => {
                                             error!(
                                                 "Successfully forwarded request to {}",
                                                 node.address()
                                             );
+
+                                            // ----------------- //
+                                            /// If SmartLatency is used, update the latency
+                                            let mut node_list =
+                                                self.global_resources.write().unwrap();
+                                            if node_list.strategy()
+                                                == NeighborNodeStrategy::SmartLatency
+                                            {
+                                                let mut n_ref =
+                                                    self.contains(&mut node, &mut node_list);
+                                                match n_ref {
+                                                    Some(NeighborNodeType::UpdatableLatency(n)) => {
+                                                        n.update_latency(latency);
+                                                    }
+                                                    Some(_) => {
+                                                        error!(
+                                                            "Node is not of type UpdatableLatency"
+                                                        );
+                                                    }
+                                                    None => {
+                                                        error!("Node not found in the list");
+                                                    }
+                                                }
+                                            }
+                                            // ----------------- //
+
                                             return HttpResponse::Ok().body(body);
                                         }
                                         Err(e) => {
                                             error!(
                                                 "Failed to forward request to {}, error: {}!",
-                                                node.address(), e
+                                                node.address(),
+                                                e
                                             );
                                             continue;
                                         }
