@@ -1,4 +1,4 @@
-use std::{error, net::Ipv4Addr, sync::Mutex};
+use std::{net::Ipv4Addr, sync::Mutex};
 
 use crate::net::{
     addresses::Addresses,
@@ -10,7 +10,7 @@ use crate::net::{
 use builder::{executor::FirecrackerExecutorBuilder, Builder, Configuration};
 use firepilot::{machine::FirepilotError, *};
 use firepilot_models::models::{BootSource, Drive, MachineConfiguration, NetworkInterface};
-use log::info;
+use log::{error, info};
 use machine::Machine;
 
 /// Struct that acts as a builder for Firecracker instances.
