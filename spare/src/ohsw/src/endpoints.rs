@@ -303,6 +303,7 @@ async fn start_instance(
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                         retries += 1;
                         // If the stream is not ready, continue
+                        sleep(Duration::from_millis(10)).await;
                         continue;
                     }
                     Err(e) => {
@@ -366,6 +367,7 @@ async fn start_instance(
                                 }
                             }
                             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                                sleep(Duration::from_millis(10)).await;
                                 continue;
                             }
                             Err(e) => {
@@ -402,6 +404,7 @@ async fn start_instance(
                                 bytes_written += n;
                             }
                             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                                sleep(Duration::from_millis(10)).await;
                                 continue;
                             }
                             Err(e) => {
@@ -444,6 +447,7 @@ async fn start_instance(
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                         // If the stream is not ready, continue
+                        sleep(Duration::from_millis(10)).await;
                         continue;
                     }
                     Err(e) => {
