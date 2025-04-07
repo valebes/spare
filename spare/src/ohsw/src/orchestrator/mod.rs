@@ -31,7 +31,7 @@ pub enum OrchestratorError {
 /// available in the system.
 pub struct Orchestrator {
     in_emergency_area: Mutex<bool>,
-    resources: Mutex<local_resources::LocalResources>,
+    resources: RwLock<LocalResources>,
     identity: Node,
     global_resources: RwLock<NeighborNodeList>,
 }
@@ -64,7 +64,7 @@ impl Orchestrator {
 
         Self {
             in_emergency_area: Mutex::new(false),
-            resources: Mutex::new(local_resources::LocalResources::new()),
+            resources: RwLock::new(LocalResources::new()),
             identity: identity,
             global_resources: RwLock::new(neighbor_nodes),
         }
@@ -176,7 +176,7 @@ impl Orchestrator {
     /// Get the resources available in the node
     pub fn get_resources(&self) -> Resources {
         Resources {
-            cpus: self.resources.lock().unwrap().get_available_cpus(),
+            cpus: self.resources.read().unwrap().get_available_cpus(),
             memory: LocalResources::get_available_memory(),
         }
     }
@@ -208,7 +208,7 @@ impl Orchestrator {
                     let client = Client::default();
                     let response = client
                         .get(format!("http://{}/resources", node.address()))
-                        .timeout(Duration::from_secs(60)) // TODO: Make this configurable
+                        .timeout(Duration::from_secs(1)) // TODO: Make this configurable
                         .send()
                         .await;
                     if response.is_ok() {
@@ -275,7 +275,7 @@ impl Orchestrator {
         memory: usize,
     ) -> Result<(), OrchestratorError> {
         info!("Requested {} cpus and {} MB", cpus, memory / 1024);
-        let mut current_resources = match self.resources.lock() {
+        let mut current_resources = match self.resources.write() {
             Ok(resources) => resources,
             Err(_) => {
                 error!("Cannot acquire resources");
@@ -308,6 +308,6 @@ impl Orchestrator {
     /// Release the resources
     pub fn release_resources(&self, cpus: usize) -> Result<(), OrchestratorError> {
         info!("Releasing {} cpus", cpus);
-        self.resources.lock().unwrap().release_cpus(cpus)
+        self.resources.write().unwrap().release_cpus(cpus)
     }
 }
