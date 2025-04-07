@@ -68,24 +68,23 @@ impl NeighborNodeType {
         let client = Client::default();
         let invoke = client
             .post(format!("http://{}/invoke", self.address()))
-            .content_type("application/json")
             .send_json(&data)
             .await;
 
         if invoke.is_err() {
-            return Err(InvokeError::Unknown);
+            return Err(InvokeError::Unknown(invoke.err().unwrap().to_string()));
         } else {
             let mut invoke = match invoke {
                 Ok(invoke) => invoke,
-                Err(_) => return Err(InvokeError::Unknown),
+                Err(e) => return Err(InvokeError::Unknown(e.to_string())),
             };
             if invoke.status().is_success() {
                 match invoke.body().await {
                     Ok(body) => Ok(body),
-                    Err(_) => Err(InvokeError::Unknown),
+                    Err(e) => Err(InvokeError::Unknown(e.to_string())),
                 }
             } else {
-                Err(InvokeError::Unknown)
+                Err(InvokeError::Unknown(invoke.status().to_string()))
             }
         }
     }

@@ -17,8 +17,16 @@ use local_resources::LocalResources;
 use log::{error, info, warn};
 
 // TODO: Move this inside the node module
+
 pub enum InvokeError {
-    Unknown,
+    Unknown(String),
+}
+impl std::fmt::Display for InvokeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InvokeError::Unknown(msg) => write!(f, "Unknown error: {}", msg),
+        }
+    }
 }
 
 /// Error returned by the orchestrator
@@ -208,7 +216,6 @@ impl Orchestrator {
                     let client = Client::default();
                     let response = client
                         .get(format!("http://{}/resources", node.address()))
-                        .timeout(Duration::from_secs(1)) // TODO: Make this configurable
                         .send()
                         .await;
                     if response.is_ok() {
@@ -238,10 +245,10 @@ impl Orchestrator {
                                             );
                                             return HttpResponse::Ok().body(body);
                                         }
-                                        Err(_) => {
+                                        Err(e) => {
                                             error!(
-                                                "Failed to forward request to {}",
-                                                node.address()
+                                                "Failed to forward request to {}, error: {}!",
+                                                node.address(), e
                                             );
                                             continue;
                                         }
