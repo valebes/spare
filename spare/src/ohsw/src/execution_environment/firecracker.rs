@@ -10,7 +10,7 @@ use crate::net::{
 use builder::{executor::FirecrackerExecutorBuilder, Builder, Configuration};
 use firepilot::{machine::FirepilotError, *};
 use firepilot_models::models::{BootSource, Drive, MachineConfiguration, NetworkInterface};
-use log::{error, info};
+use log::info;
 use machine::Machine;
 
 /// Struct that acts as a builder for Firecracker instances.
@@ -39,15 +39,11 @@ impl FirecrackerBuilder {
         vcpus: i32,
         memory: i32,
     ) -> Result<FirecrackerInstance, FirepilotError> {
-        error!("[DEBUG] Attempt to get lock on network");
-
         // Scope to release the lock immediately after getting IP and network info
         let (ip, gateway, netmask) = {
             let mut network = self.network.lock().map_err(|e| {
                 FirepilotError::Unknown(format!("Failed to lock network: {}", e))
             })?;
-
-            error!("[DEBUG] Got lock on network");
 
             match network.get() {
                 Some(ip) => {
