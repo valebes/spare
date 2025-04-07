@@ -172,10 +172,14 @@ async fn start_instance(
     */
     let builder = firecracker_builder;
 
+
+    error!("[DEBUG] Starting instance: {}", data.function);
     // Create new instance
     let fc_instance = builder
         .new_instance(data.image.clone(), data.vcpus, data.memory)
         .await;
+
+    error!("[DEBUG] Created instance: {}", data.function);
 
     match fc_instance {
         Ok(mut fc_instance) => {
