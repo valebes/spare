@@ -53,9 +53,9 @@ impl super::Latency for SimpleCellular {
     }
 
     fn update_latency(&mut self, new_latency: f64) {
-        let _ = new_latency; // Update the latency with the new value
-       // Here do nothing, the latency is estimated
-       // using the estimate_latency function
+        let _ = new_latency;
+        // Here do nothing, the latency is estimated
+        // using the estimate_latency function
     }
 }
 impl SimpleCellular {

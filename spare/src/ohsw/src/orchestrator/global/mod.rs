@@ -257,7 +257,6 @@ impl NeighborNodeList {
                         sample_count: 0,
                     });
                 }
-                
             }
         }
     }
@@ -296,7 +295,6 @@ impl NeighborNodeList {
                     warn!("Sorting by distance, but node is a latency node");
                     node.distance(current)
                 }
-                _ => panic!("Node is not a distance node"),
             };
             let distance_b = match b {
                 NeighborNodeType::Distance(node) => node.distance(current),
@@ -304,7 +302,6 @@ impl NeighborNodeList {
                     warn!("Sorting by distance, but node is a latency node");
                     node.distance(current)
                 }
-                _ => panic!("Node is not a distance node"),
             };
             distance_a.partial_cmp(&distance_b).unwrap()
         });

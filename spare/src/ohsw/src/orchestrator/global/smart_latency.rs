@@ -45,7 +45,6 @@ impl NeighborNode for SmartLatency {
     }
 }
 
-
 impl super::Distance for SmartLatency {
     fn distance(&self, node: &mut dyn NeighborNode) -> f64 {
         let location_a = Location::from(self.position.0, self.position.1);

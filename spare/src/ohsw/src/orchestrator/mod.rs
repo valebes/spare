@@ -1,7 +1,10 @@
 //! Orchestrator module. It is responsible for managing the local resources and monitoring the remote nodes
 pub mod global;
 mod local_resources;
-use std::{sync::{Mutex, RwLock}, time::Instant};
+use std::{
+    sync::{Mutex, RwLock},
+    time::Instant,
+};
 
 use crate::api::{self, invoke::InvokeFunction, resources::Resources};
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -258,7 +261,12 @@ impl Orchestrator {
                                                 NeighborNodeType::Latency(node) => {
                                                     let mut node_list =
                                                         self.global_resources.write().unwrap();
-                                                    let n_ref = self.contains(&mut NeighborNodeType::Latency(node), &mut node_list).unwrap();
+                                                    let n_ref = self
+                                                        .contains(
+                                                            &mut NeighborNodeType::Latency(node),
+                                                            &mut node_list,
+                                                        )
+                                                        .unwrap();
                                                     match n_ref {
                                                         NeighborNodeType::Latency(n_ref) => {
                                                             n_ref.update_latency(
@@ -268,7 +276,7 @@ impl Orchestrator {
                                                         _ => {}
                                                     }
                                                 }
-    
+
                                                 _ => {}
                                             }
                                             return HttpResponse::Ok().body(body);
