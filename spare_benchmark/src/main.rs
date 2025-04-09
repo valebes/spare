@@ -107,9 +107,9 @@ async fn test(
     function_path: &String,
     payload: &Option<String>,
 ) -> (u128, usize, usize, Vec<u128>) {
-    let request_per_epoch = ((16 * nodes.len()) as f32 * 1.0).floor() as usize; // 100% Load
+    let request_per_epoch = ((16 * nodes.len()) as f32 * 0.5).floor() as usize; // 100% Load
 
-    let inter_arrival = 3; // ms
+    let inter_arrival = 8; // ms
     let mut latency_per_epoch = Vec::new();
     let latency = Arc::new(Mutex::new(Vec::new()));
     let completed = Arc::new(AtomicUsize::new(0));
@@ -187,13 +187,8 @@ async fn test(
                             }
                         }
                         Err(e) => {
-                            error!("Error: {}!", e);
-                            if e.is_timeout() {
-                                error!("Timeout! Now trying again...");
-                            } else if e.is_connect() {
-                                error!("Connection error! Now trying again...");
-                            } else if e.is_redirect() {
-                                error!("Redirect error! Now trying again...");
+                            match e {
+                                
                             }
                             continue;
                         }
