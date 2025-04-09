@@ -187,8 +187,13 @@ async fn test(
                             }
                         }
                         Err(e) => {
-                            match e {
-                                
+                            error!("Error: {}!", e);
+                            if e.is_timeout() {
+                                error!("Timeout! Now trying again...");
+                            } else if e.is_connect() {
+                                error!("Connection error! Now trying again...");
+                            } else if e.is_redirect() {
+                                error!("Redirect error! Now trying again...");
                             }
                             continue;
                         }
