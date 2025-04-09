@@ -25,11 +25,7 @@ use rand::distr::Distribution;
 use rand::distr::Uniform;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
-use tokio::{
-    fs,
-    sync::Mutex,
-    time::{sleep},
-};
+use tokio::{fs, sync::Mutex, time::sleep};
 
 mod dataset;
 use dataset::*;
@@ -111,9 +107,9 @@ async fn test(
     function_path: &String,
     payload: &Option<String>,
 ) -> (u128, usize, usize, Vec<u128>) {
-    let request_per_epoch = ((16 * nodes.len()) as f32 * 0.9).floor() as usize; 
+    let request_per_epoch = ((16 * nodes.len()) as f32 * 1.0).floor() as usize; // 100% Load
 
-    let inter_arrival = 5; // ms
+    let inter_arrival = 3; // ms
     let mut latency_per_epoch = Vec::new();
     let latency = Arc::new(Mutex::new(Vec::new()));
     let completed = Arc::new(AtomicUsize::new(0));
@@ -215,7 +211,7 @@ async fn test(
 
         let end_time = chrono::Utc::now().naive_utc().to_string();
 
-        sleep(Duration::from_secs(5)).await;
+        sleep(Duration::from_secs(2.5)).await;
 
         // Announce the end of an epoch
         send_message(
@@ -246,7 +242,7 @@ async fn test(
             i,
             latency_per_epoch.last().unwrap_or(&0).to_string()
         );
-        sleep(Duration::from_secs(5)).await;
+        sleep(Duration::from_secs(2.5)).await;
     }
     let latency_tmp = latency.lock().await;
     let sum = latency_tmp.iter().sum::<u128>();
