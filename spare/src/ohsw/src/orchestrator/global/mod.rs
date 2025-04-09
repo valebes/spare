@@ -256,6 +256,29 @@ impl NeighborNodeList {
                         latency: 0.0,
                         sample_count: 0,
                     });
+                } else {
+                    // Put at the end the nodes that have latency != f64::MAX
+                    // So we can offload to all the nodes and measure the latency
+                    let mut found = true;
+                    let len = self.nodes.len();
+                    for i in 0..len {
+                        match self.nodes[i] {
+                            NeighborNodeType::Latency(ref mut node) => {
+                                if node.latency(current) != f64::MAX {
+                                    self.nodes.push(self.nodes.remove(i));
+                                } else {
+                                    found = false;
+                                }
+                            }
+                            _ => (),
+                        }
+                    }
+                    // If all the nodes have latency != f64::MAX, we move the first one to the end
+                    // So we can do a round robin through the nodes and measure the latency
+                    if found {
+                        let node = self.nodes.remove(0);
+                        self.nodes.push(node);
+                    }
                 }
             }
         }

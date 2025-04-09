@@ -257,6 +257,8 @@ impl Orchestrator {
                                                 "Successfully forwarded request to {}",
                                                 node.address()
                                             );
+                                            // If the chosen sttrategy is latency-based, update the latency
+                                            // of the node
                                             match node {
                                                 NeighborNodeType::Latency(node) => {
                                                     let mut node_list =
