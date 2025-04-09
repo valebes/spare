@@ -107,9 +107,9 @@ async fn test(
     function_path: &String,
     payload: &Option<String>,
 ) -> (u128, usize, usize, Vec<u128>) {
-    let request_per_epoch = ((16 * nodes.len()) as f32 * 100.0).floor() as usize; // 100% Load
+    let request_per_epoch = ((16 * nodes.len()) as f32 * 1.0).floor() as usize; // 100% Load
 
-    let inter_arrival = 1; // ms
+    let inter_arrival = 3; // ms
     let mut latency_per_epoch = Vec::new();
     let latency = Arc::new(Mutex::new(Vec::new()));
     let completed = Arc::new(AtomicUsize::new(0));
@@ -180,7 +180,7 @@ async fn test(
                                 break;
                             } else {
                                 error!("Error: {}", res.text().await.unwrap());
-                                sleep(Duration::from_millis(100)).await; // Retry after 100ms TODO: Revise this
+                                sleep(Duration::from_millis(10)).await; // Retry after 100ms TODO: Revise this
                                 total_time += end.duration_since(start).as_millis();
                                 failed_tmp.fetch_add(1, Ordering::SeqCst);
                                 continue;
