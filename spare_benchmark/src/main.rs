@@ -211,7 +211,7 @@ async fn test(
 
         let end_time = chrono::Utc::now().naive_utc().to_string();
 
-        sleep(Duration::from_secs(2.5)).await;
+        sleep(Duration::from_millis(2500)).await;
 
         // Announce the end of an epoch
         send_message(
@@ -242,7 +242,7 @@ async fn test(
             i,
             latency_per_epoch.last().unwrap_or(&0).to_string()
         );
-        sleep(Duration::from_secs(2.5)).await;
+        sleep(Duration::from_millis(2500)).await;
     }
     let latency_tmp = latency.lock().await;
     let sum = latency_tmp.iter().sum::<u128>();
