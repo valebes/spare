@@ -271,7 +271,8 @@ impl NeighborNodeList {
                                     emergency: current.emergency(),
                                     latency: 0.0,
                                     sample_count: 0,
-                                }) != f64::MAX {
+                                }) != f64::MAX
+                                {
                                     let removed_node = self.nodes.remove(i);
                                     self.nodes.push(removed_node);
                                 } else {
