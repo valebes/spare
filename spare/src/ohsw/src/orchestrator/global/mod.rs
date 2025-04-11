@@ -74,6 +74,7 @@ impl NeighborNodeType {
         let client = Client::default();
         let invoke = client
             .post(format!("http://{}/invoke", self.address()))
+            .timeout(std::time::Duration::from_secs(60))
             .send_json(&data)
             .await;
 

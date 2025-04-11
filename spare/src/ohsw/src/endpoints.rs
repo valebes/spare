@@ -562,7 +562,7 @@ mod test {
                     fc_instance.start().await.unwrap();
                     let (mut stream, _) = socket.accept().unwrap();
 
-                    let mut buf = [0; 1024];
+                    let mut buf = [0; 5];
                     stream.read(&mut buf).unwrap();
                     let message = String::from_utf8_lossy(&buf);
 
