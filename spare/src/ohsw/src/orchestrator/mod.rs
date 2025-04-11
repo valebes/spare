@@ -201,7 +201,6 @@ impl Orchestrator {
     ) -> HttpResponse<BoxBody> {
         let cpus = data.vcpus;
         let memory = data.memory;
-
         // Iterate over the nodes
         warn!("Function must be offloaded");
         for i in 0..self.number_of_nodes() {
@@ -259,6 +258,7 @@ impl Orchestrator {
                                             );
                                             // If the chosen sttrategy is latency-based, update the latency
                                             // of the node
+                                            /* 
                                             match node {
                                                 NeighborNodeType::Latency(node) => {
                                                     let mut node_list =
@@ -280,7 +280,7 @@ impl Orchestrator {
                                                 }
 
                                                 _ => {}
-                                            }
+                                            }  */
                                             return HttpResponse::Ok().body(body);
                                         }
                                         Err(e) => {
