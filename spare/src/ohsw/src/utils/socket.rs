@@ -1,22 +1,8 @@
-use actix_web::rt::{net::UnixStream, task::yield_now, time::{sleep, timeout}};
+use actix_web::rt::{net::UnixStream, time::{sleep, timeout}};
 
 pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), std::io::Error> {
     let mut total_read = 0;
     loop {
-        match timeout(std::time::Duration::from_millis(5000),stream.readable()).await {
-            Ok(Ok(())) => {
-                // Stream is readable
-            }
-            Ok(Err(e)) => {
-                return Err(e);
-            }
-            Err(_) => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::TimedOut,
-                    "Timeout while waiting for stream to be readable",
-                ));
-            }
-        }
         let mut delay = 5;
 
         match stream.try_read(&mut buf[total_read..]) {
@@ -39,7 +25,7 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
                 if e.kind() != std::io::ErrorKind::WouldBlock {
                     return Err(e);
                 } else {
-                    if delay > 5000 {
+                    if delay > 10000 {
                         return Err(std::io::Error::new(
                             std::io::ErrorKind::TimedOut,
                             "Timeout Reading!",
@@ -58,20 +44,6 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
 pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::io::Error> {
     let mut total_written = 0;
     loop {
-        match timeout(std::time::Duration::from_millis(5000),stream.writable()).await {
-            Ok(Ok(())) => {
-                // Stream is writable
-            }
-            Ok(Err(e)) => {
-                return Err(e);
-            }
-            Err(_) => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::TimedOut,
-                    "Timeout while waiting for stream to be writable",
-                ));
-            }
-        }
         let mut delay = 5;
 
         match stream.try_write(&buf[total_written..]) {
@@ -94,7 +66,7 @@ pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::i
                 if e.kind() != std::io::ErrorKind::WouldBlock {
                     return Err(e);
                 } else {
-                    if delay > 5000 {
+                    if delay > 10000 {
                         return Err(std::io::Error::new(
                             std::io::ErrorKind::TimedOut,
                             "Timeout Writing!",

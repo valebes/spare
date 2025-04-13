@@ -147,7 +147,7 @@ async fn test(
                     function: "test".to_string(), // Function name (This is hardcoded for now)
                     image: function_path_tmp,
                     vcpus: 2,
-                    memory: 256,
+                    memory: 512,
                     payload: payload_clone,
                     emergency: false,
                     hops: 0,
