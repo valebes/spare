@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use actix_web::rt::{net::UnixStream, time::sleep};
+use actix_web::rt::{net::UnixStream, time::{sleep, timeout}};
 use log::error;
 
 pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), std::io::Error> {
@@ -8,7 +8,7 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
 
     loop {
         error!("Reading from stream");
-        stream.readable().await?;
+        timeout(Duration::from_millis(1000), stream.readable()).await;
 
         match stream.try_read(&mut buf[total_read..]) {
             Ok(0) => break,
