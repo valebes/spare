@@ -39,6 +39,12 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
                 if e.kind() != std::io::ErrorKind::WouldBlock {
                     return Err(e);
                 } else {
+                    if delay > 5000 {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            "Timeout Reading!",
+                        ));
+                    }
                     sleep(std::time::Duration::from_millis(delay)).await;
                     delay = (delay * 2).min(100); // Exponential backoff with a max delay of 100ms
                     continue;
@@ -88,6 +94,12 @@ pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::i
                 if e.kind() != std::io::ErrorKind::WouldBlock {
                     return Err(e);
                 } else {
+                    if delay > 5000 {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            "Timeout Writing!",
+                        ));
+                    }
                     sleep(std::time::Duration::from_millis(delay)).await;
                     delay = (delay * 2).min(100); // Exponential backoff with a max delay of 100ms
                     continue;

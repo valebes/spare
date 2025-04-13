@@ -271,8 +271,7 @@ async fn start_instance(
                 }
             }
 
-            let message: std::borrow::Cow<'_, str> =
-                unsafe { std::borrow::Cow::Owned(String::from_utf8_unchecked(buf.to_vec())) };
+            let message: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buf);
 
             info!(
                 "Received message: {}, for instance {}",
