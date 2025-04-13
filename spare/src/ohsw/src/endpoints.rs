@@ -262,17 +262,12 @@ async fn start_instance(
 
             let mut buf = [0; 5];
             // Read from the vsock socket
-            match timeout(Duration::from_millis(500), read_exact(&mut stream, &mut buf)).await {
-                Ok(Ok(_)) => {}
-                Ok(Err(e)) => {
+            match read_exact(&mut stream, &mut buf).await {
+                Ok(_) => {}
+                Err(e) => {
                     error!("Error reading from vsocket: {}", e);
                     emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                     return Err(InstanceError::VSock);
-                },
-                Err(e) => {
-                    error!("Error reading from vsocket (timeout): {}", e);
-                    emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
-                    return Err(InstanceError::VSockTimeout);
                 }
             }
 
