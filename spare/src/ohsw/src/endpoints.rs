@@ -251,7 +251,6 @@ async fn start_instance(
             );
 
             let mut buf = [0; 5];
-            sleep(Duration::from_millis(10)).await;
             // Read from the vsock socket
             match timeout(
                 Duration::from_millis(500),
