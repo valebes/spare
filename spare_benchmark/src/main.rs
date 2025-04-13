@@ -107,7 +107,7 @@ async fn test(
     function_path: &String,
     payload: &Option<String>,
 ) -> (u128, usize, usize, Vec<u128>) {
-    let request_per_epoch = ((16 * nodes.len()) as f32 * 0.5).floor() as usize; // 100% Load
+    let request_per_epoch = ((8 * nodes.len()) as f32 * 1.0).floor() as usize; // 100% Load
 
     let inter_arrival = 30; // ms
     let mut latency_per_epoch = Vec::new();
@@ -147,7 +147,7 @@ async fn test(
                     function: "test".to_string(), // Function name (This is hardcoded for now)
                     image: function_path_tmp,
                     vcpus: 2,
-                    memory: 512,
+                    memory: 256,
                     payload: payload_clone,
                     emergency: false,
                     hops: 0,
