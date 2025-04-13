@@ -10,6 +10,7 @@ use actix_web::{
     HttpRequest, HttpResponse, Responder,
 };
 use log::{error, info, warn};
+use serde_json::to_vec;
 use sqlx::{sqlite, Pool};
 
 use crate::{
@@ -269,7 +270,7 @@ async fn start_instance(
                 }
             }
 
-            let message: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buf);
+            let message: std::borrow::Cow<'_, str> = unsafe { std::borrow::Cow::Owned(String::from_utf8_unchecked(buf.to_vec())) };
 
             info!(
                 "Received message: {}, for instance {}",
@@ -294,7 +295,7 @@ async fn start_instance(
                     // Write length of payload
                     let len = payload.len();
                     // Concatenate the length of the payload and the payload
-                    let mut buf = vec![0; 8 + payload.len()];
+                    let mut buf = vec![0; 8 + len];
                     buf[0..8].copy_from_slice(&len.to_be_bytes());
                     buf[8..].copy_from_slice(payload.as_bytes());
                     match write_all(&mut stream, &buf).await {
@@ -333,7 +334,7 @@ async fn start_instance(
                 }
             }
 
-            let len = u64::from_be_bytes(len) as usize;
+            let len = u64::from_be_bytes(len.as_slice().try_into().unwrap()) as usize;
             info!("Length of response: {}, for instance {}", len, instance.id);
             let mut buf = vec![0; len];
             // Read the response
