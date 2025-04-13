@@ -197,6 +197,9 @@ async fn start_instance(
 
             info!("Created new function instance: {}", instance.id);
 
+            // Make sure the vsock socket is ready
+            let mut path = fc_instance.get_vsock_path();
+
             path.push_str("_1234");
             let socket = UnixListener::bind(path);
 
