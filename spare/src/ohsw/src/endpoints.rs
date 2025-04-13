@@ -1,16 +1,15 @@
-use std::{os::fd::AsRawFd, path::Path, sync::Arc, time::Duration, vec};
+use std::{os::fd::AsRawFd, sync::Arc, time::Duration, vec};
 
 use actix_web::{
     get, post,
     rt::{
         net::UnixListener,
-        time::{sleep, timeout},
+        time::timeout,
     },
     web::{self, Bytes},
     HttpRequest, HttpResponse, Responder,
 };
 use log::{error, info, warn};
-use serde_json::to_vec;
 use sqlx::{sqlite, Pool};
 
 use crate::{
@@ -250,7 +249,6 @@ async fn start_instance(
                 instance.id
             );
 
-            sleep(Duration::from_millis(10)).await;
             let mut buf = [0; 5];
             // Read from the vsock socket
             match read_exact(&mut stream, &mut buf)

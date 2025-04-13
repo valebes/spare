@@ -3,6 +3,8 @@ use actix_web::rt::{net::UnixStream, time::{sleep, timeout}};
 pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), std::io::Error> {
     let mut total_read = 0;
     loop {
+        stream.readable().await?;
+
         let mut delay = 5;
 
         match stream.try_read(&mut buf[total_read..]) {
@@ -44,6 +46,8 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
 pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::io::Error> {
     let mut total_written = 0;
     loop {
+        stream.writable().await?;
+        
         let mut delay = 5;
 
         match stream.try_write(&buf[total_written..]) {
