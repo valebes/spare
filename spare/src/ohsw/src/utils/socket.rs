@@ -1,14 +1,14 @@
-use std::time::Duration;
+use std::{io::{Read, Write}, os::unix::net::UnixStream, time::Duration};
 
-use actix_web::rt::{net::UnixStream, time::{sleep}};
+use actix_web::rt::{time::{sleep}};
 use log::error;
 
 pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), std::io::Error> {
     let mut total_read = 0;
     loop {
-        stream.readable().await?;
+        //stream.readable().await?;
 
-        match stream.try_read(&mut buf[total_read..]) {
+        match stream.read(&mut buf[total_read..]) {
             Ok(0) => break,
             Ok(n) => {
                 total_read += n;
@@ -32,9 +32,9 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
 pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::io::Error> {
     let mut total_written = 0;
     loop {
-        stream.writable().await?;
+        //stream.writable().await?;
 
-        match stream.try_write(&buf[total_written..]) {
+        match stream.write(&buf[total_written..]) {
             Ok(0) => break,
             Ok(n) => {
                 total_written += n;
