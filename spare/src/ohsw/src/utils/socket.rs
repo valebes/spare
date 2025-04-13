@@ -5,6 +5,7 @@ use actix_web::rt::{net::UnixStream, time::sleep};
 pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), std::io::Error> {
     let mut total_read = 0;
     loop {
+        sleep(Duration::from_millis(5)).await;
         stream.readable().await?;
 
         match stream.try_read(&mut buf[total_read..]) {
