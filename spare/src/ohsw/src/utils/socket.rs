@@ -17,7 +17,7 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
                 if e.kind() != std::io::ErrorKind::WouldBlock {
                     return Err(e);
                 } else {
-                    sleep(std::time::Duration::from_millis(5)).await;
+                    yield_now().await;
                     continue;
                 }
             }
@@ -43,7 +43,7 @@ pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::i
                 if e.kind() != std::io::ErrorKind::WouldBlock {
                     return Err(e);
                 } else {
-                    sleep(std::time::Duration::from_millis(5)).await;
+                    yield_now().await;
                     continue;
                 }
             }

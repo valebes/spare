@@ -250,12 +250,15 @@ async fn start_instance(
                 instance.id
             );
 
-
-            sleep(Duration::from_millis(5)).await;
             let mut buf = [0; 5];
             // Read from the vsock socket
-            match timeout(Duration::from_millis(500), read_exact(&mut stream, &mut buf)).await {
-                Ok(Ok(_)) => {},
+            match timeout(
+                Duration::from_millis(500),
+                read_exact(&mut stream, &mut buf),
+            )
+            .await
+            {
+                Ok(Ok(_)) => {}
                 Ok(Err(e)) => {
                     error!("Error reading from vsocket: {}", e);
                     emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
@@ -268,7 +271,8 @@ async fn start_instance(
                 }
             }
 
-            let message: std::borrow::Cow<'_, str> = unsafe { std::borrow::Cow::Owned(String::from_utf8_unchecked(buf.to_vec())) };
+            let message: std::borrow::Cow<'_, str> =
+                unsafe { std::borrow::Cow::Owned(String::from_utf8_unchecked(buf.to_vec())) };
 
             info!(
                 "Received message: {}, for instance {}",
@@ -306,8 +310,7 @@ async fn start_instance(
                         }
                     }
                 }
-                None => {
-                }
+                None => {}
             }
 
             // Read the length of the response

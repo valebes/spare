@@ -46,15 +46,12 @@ impl LocalResources {
 
     /// Get the total memory of the node
     pub fn get_total_memory() -> usize {
-        let contents =
-            std::fs::read_to_string("/proc/meminfo");
+        let contents = std::fs::read_to_string("/proc/meminfo");
         if contents.is_err() {
             return 0;
         }
         let contents = contents.unwrap();
-        let mem_info = contents
-            .lines()
-            .find(|line| line.starts_with("MemTotal"));
+        let mem_info = contents.lines().find(|line| line.starts_with("MemTotal"));
         if mem_info.is_none() {
             return 0;
         }
@@ -66,8 +63,7 @@ impl LocalResources {
 
     /// Get the currently available free memory
     pub fn get_available_memory() -> usize {
-        let contents =
-            std::fs::read_to_string("/proc/meminfo");
+        let contents = std::fs::read_to_string("/proc/meminfo");
         if contents.is_err() {
             return 0;
         }
