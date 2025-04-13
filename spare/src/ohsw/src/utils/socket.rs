@@ -6,7 +6,6 @@ use log::error;
 pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), std::io::Error> {
     let mut total_read = 0;
     loop {
-        error!("Reading from stream");
         stream.readable().await?;
 
         match stream.try_read(&mut buf[total_read..]) {
@@ -21,20 +20,17 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
                 if e.kind() != std::io::ErrorKind::WouldBlock {
                     return Err(e);
                 } else {
-                    error!("Stream not readable");
                     sleep(Duration::from_millis(10)).await;
                     continue;
                 }
             }
         }
     }
-    error!("Finished reading from stream");
     Ok(())
 }
 
 pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::io::Error> {
     let mut total_written = 0;
-    error!("Writing to stream");
     loop {
         stream.writable().await?;
 
@@ -50,13 +46,11 @@ pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::i
                 if e.kind() != std::io::ErrorKind::WouldBlock {
                     return Err(e);
                 } else {
-                    error!("Stream not writable");
                     sleep(Duration::from_millis(10)).await;
                     continue;
                 }
             }
         }
     }
-    error!("Finished writing to stream");
     Ok(())
 }
