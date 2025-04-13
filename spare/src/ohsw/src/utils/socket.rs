@@ -46,7 +46,7 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
                         ));
                     }
                     sleep(std::time::Duration::from_millis(delay)).await;
-                    delay = (delay * 2).min(100); // Exponential backoff with a max delay of 100ms
+                    delay = (delay * 2).min(10000); // Exponential backoff with a max delay of 100ms
                     continue;
                 }
             }
@@ -101,7 +101,7 @@ pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::i
                         ));
                     }
                     sleep(std::time::Duration::from_millis(delay)).await;
-                    delay = (delay * 2).min(100); // Exponential backoff with a max delay of 100ms
+                    delay = (delay * 2).min(10000); // Exponential backoff with a max delay of 100ms
                     continue;
                 }
             }
