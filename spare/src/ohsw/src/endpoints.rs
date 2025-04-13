@@ -197,18 +197,6 @@ async fn start_instance(
 
             info!("Created new function instance: {}", instance.id);
 
-            // Make sure the vsock socket is ready
-            let mut path = fc_instance.get_vsock_path();
-
-            // Check if the vsock file exists, if not wait in a loop
-            loop {
-                if Path::new(&path).exists() {
-                    break;
-                }
-                sleep(Duration::from_millis(10)).await;
-                error!("Waiting for vsock socket to be ready: {}", path);
-            }
-
             path.push_str("_1234");
             let socket = UnixListener::bind(path);
 
