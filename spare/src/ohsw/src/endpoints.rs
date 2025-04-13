@@ -259,6 +259,8 @@ async fn start_instance(
                 instance.id
             );
 
+
+            sleep(Duration::from_millis(10)).await;
             let mut buf = [0; 5];
             // Read from the vsock socket
             match read_exact(&mut stream, &mut buf).await {
