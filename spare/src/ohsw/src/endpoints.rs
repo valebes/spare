@@ -308,18 +308,7 @@ async fn start_instance(
                         }
                     }
                 }
-                None => {
-                    let buf = [0; 8];
-                    match write_all(&mut stream, &buf).await {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("Error writing to vsocket: {}", e);
-                            emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder)
-                                .await;
-                            return Err(InstanceError::VSock);
-                        }
-                    }
-                }
+                None => {}
             }
 
             // Read the length of the response
