@@ -308,7 +308,9 @@ async fn start_instance(
                         }
                     }
                 }
-                None => {}
+                None => {
+                    sleep(Duration::from_millis(10)).await;
+                }
             }
 
             // Read the length of the response
