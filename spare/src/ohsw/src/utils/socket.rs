@@ -36,7 +36,7 @@ pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::i
     let mut total_written = 0;
     error!("Writing to stream");
     loop {
-        stream.writable().await?;
+        timeout(Duration::from_millis(1000), stream.writable()).await;
 
         match stream.try_write(&buf[total_written..]) {
             Ok(0) => break,
