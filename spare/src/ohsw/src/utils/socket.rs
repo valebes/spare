@@ -5,7 +5,7 @@ use log::error;
 
 pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), std::io::Error> {
     let mut total_read = 0;
-
+    sleep(Duration::from_millis(100)).await;
     loop {
         error!("Reading from stream");
         timeout(Duration::from_millis(1000), stream.readable()).await;

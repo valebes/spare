@@ -309,7 +309,6 @@ async fn start_instance(
                     }
                 }
                 None => {
-                    sleep(Duration::from_millis(1000)).await;
                 }
             }
 
