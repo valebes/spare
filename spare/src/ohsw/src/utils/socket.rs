@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use actix_web::rt::{net::UnixStream, task::yield_now, time::sleep};
 
 pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), std::io::Error> {
@@ -20,6 +18,7 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
                     return Err(e);
                 } else {
                     yield_now().await;
+                    sleep(std::time::Duration::from_millis(5)).await;
                     continue;
                 }
             }
@@ -46,6 +45,7 @@ pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::i
                     return Err(e);
                 } else {
                     yield_now().await;
+                    sleep(std::time::Duration::from_millis(5)).await;
                     continue;
                 }
             }
