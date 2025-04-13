@@ -236,7 +236,7 @@ async fn start_instance(
 
             info!("Starting instance: {} ip: {}", instance.id, instance.ip);
 
-            let mut stream = match timeout(Duration::from_millis(100), socket.accept()).await {
+            let mut stream = match timeout(Duration::from_millis(500), socket.accept()).await {
                 Ok(res) => match res {
                     Ok((stream, _)) => stream,
                     Err(e) => {
