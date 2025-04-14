@@ -8,7 +8,7 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
     let mut delay = 5;
 
     loop {
-        match timeout(std::time::Duration::from_millis(delay), stream.readable()).await {
+        match timeout(std::time::Duration::from_millis(10000), stream.readable()).await {
             Ok(Ok(_)) => {}
             Ok(Err(e)) => return Err(e),
             Err(_) => {
@@ -18,7 +18,6 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
                         "Timeout Reading!",
                     ));
                 }
-                delay = (delay * 2).min(10000); // Exponential backoff with a max delay
                 continue;
             }
         }
@@ -43,6 +42,8 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
                 if e.kind() != std::io::ErrorKind::WouldBlock {
                     return Err(e);
                 } else {
+                    sleep(std::time::Duration::from_millis(delay)).await;
+                    delay = (delay * 2).min(10000); // Exponential backoff with a max delay
                     continue;
                 }
             }
@@ -56,7 +57,7 @@ pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::i
     let mut delay = 5;
 
     loop {
-        match timeout(std::time::Duration::from_millis(delay), stream.writable()).await {
+        match timeout(std::time::Duration::from_millis(10000), stream.writable()).await {
             Ok(Ok(_)) => {}
             Ok(Err(e)) => return Err(e),
             Err(_) => {
@@ -66,7 +67,6 @@ pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::i
                         "Timeout Writing!",
                     ));
                 }
-                delay = (delay * 2).min(10000); // Exponential backoff with a max delay
                 continue;
             }
         }
@@ -91,6 +91,8 @@ pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::i
                 if e.kind() != std::io::ErrorKind::WouldBlock {
                     return Err(e);
                 } else {
+                    sleep(std::time::Duration::from_millis(delay)).await;
+                    delay = (delay * 2).min(10000); // Exponential backoff with a max delay
                     continue;
                 }
             }
