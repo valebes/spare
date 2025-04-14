@@ -2,10 +2,7 @@ use std::{os::fd::AsRawFd, sync::Arc, time::Duration, vec};
 
 use actix_web::{
     get, post,
-    rt::{
-        net::UnixListener,
-        time::timeout,
-    },
+    rt::{net::UnixListener, time::timeout},
     web::{self, Bytes},
     HttpRequest, HttpResponse, Responder,
 };
@@ -251,15 +248,13 @@ async fn start_instance(
 
             let mut buf = [0; 5];
             // Read from the vsock socket
-            match read_exact(&mut stream, &mut buf)
-            .await
-            {
+            match read_exact(&mut stream, &mut buf).await {
                 Ok(_) => {}
                 Err(e) => {
                     error!("Error reading from vsocket: {}", e);
                     emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
                     return Err(InstanceError::VSock);
-                } 
+                }
             }
 
             let message: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buf);
