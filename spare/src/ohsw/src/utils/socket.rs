@@ -2,6 +2,7 @@ use actix_web::rt::{
     net::UnixStream,
     time::{sleep, timeout},
 };
+use log::error;
 
 pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), std::io::Error> {
     let mut total_read = 0;
@@ -25,6 +26,8 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
         match stream.try_read(&mut buf[total_read..]) {
             Ok(0) => {
                 if total_read < buf.len() {
+                    error!("Total read: {}", total_read);
+                    error!("Buffer length: {}", buf.len());
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::UnexpectedEof,
                         "Stream closed before reading the expected amount of data",
