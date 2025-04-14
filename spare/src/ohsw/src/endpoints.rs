@@ -248,7 +248,7 @@ async fn start_instance(
 
             let mut buf = [0; 5];
             // Read from the vsock socket
-            match read_exact(&mut stream, &mut buf).await {
+            match read_exact(&mut stream, &mut buf, 500).await { // 500ms Timeout for machine to be ready
                 Ok(_) => {}
                 Err(e) => {
                     error!("Error reading from vsocket: {}", e);
@@ -285,7 +285,8 @@ async fn start_instance(
                     let mut buf = vec![0; 8 + len];
                     buf[0..8].copy_from_slice(&len.to_be_bytes());
                     buf[8..].copy_from_slice(payload.as_bytes());
-                    match write_all(&mut stream, &buf).await {
+                    // TODO: Specify the timeout
+                    match write_all(&mut stream, &buf, 100000).await {
                         Ok(_) => {}
                         Err(e) => {
                             error!("Error writing to vsocket: {}", e);
@@ -301,7 +302,8 @@ async fn start_instance(
             // Read the length of the response
             info!("Reading length of response from instance: {}", instance.id);
             let mut len = [0; 8];
-            match read_exact(&mut stream, &mut len).await {
+            // TODO: Specify the timeout
+            match read_exact(&mut stream, &mut len, 10000).await {
                 Ok(_) => {}
                 Err(e) => {
                     error!("Error reading from vsocket: {}", e);
@@ -314,7 +316,8 @@ async fn start_instance(
             info!("Length of response: {}, for instance {}", len, instance.id);
             let mut buf = vec![0; len];
             // Read the response
-            match read_exact(&mut stream, &mut buf).await {
+            // TODO: Specify the timeout
+            match read_exact(&mut stream, &mut buf, 10000).await {
                 Ok(_) => {}
                 Err(e) => {
                     error!("Error reading from vsocket: {}", e);

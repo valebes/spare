@@ -4,16 +4,29 @@ use actix_web::rt::{
 };
 use log::error;
 
-pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), std::io::Error> {
+/// Reads exactly `buf.len()` bytes from the stream, or returns an error if the stream is closed before that.
+/// This function will block until the specified amount of data is read or an error occurs.
+/// It uses exponential backoff for retries in case of `WouldBlock` errors.
+/// The `max_timeout` parameter specifies the maximum timeout for the read operation.
+/// If the read operation takes longer than this timeout, an error will be returned.
+/// # Arguments
+/// * `stream` - The UnixStream to read from.
+/// * `buf` - The buffer to read the data into.
+/// * `max_timeout` - The maximum timeout for the read operation (in milliseconds).
+/// # Returns
+/// A Result indicating success or failure.
+/// # Errors
+/// If the stream is closed before reading the expected amount of data, or if a timeout occurs.
+pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8], max_timeout: u64) -> Result<(), std::io::Error> {
     let mut total_read = 0;
     let mut delay = 5;
 
     loop {
-        match timeout(std::time::Duration::from_millis(10000), stream.readable()).await {
+        match timeout(std::time::Duration::from_millis(max_timeout), stream.readable()).await {
             Ok(Ok(_)) => {}
             Ok(Err(e)) => return Err(e),
             Err(_) => {
-                if delay > 10000 {
+                if delay > max_timeout {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::TimedOut,
                         "Timeout Reading!",
@@ -46,7 +59,7 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
                     return Err(e);
                 } else {
                     sleep(std::time::Duration::from_millis(delay)).await;
-                    delay = (delay * 2).min(10000); // Exponential backoff with a max delay
+                    delay = (delay * 2).min(max_timeout); // Exponential backoff with a max delay
                     continue;
                 }
             }
@@ -55,16 +68,29 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8]) -> Result<(), s
     Ok(())
 }
 
-pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::io::Error> {
+/// Writes all bytes from the buffer to the stream, or returns an error if the stream is closed before that.
+/// This function will block until the specified amount of data is written or an error occurs.
+/// It uses exponential backoff for retries in case of `WouldBlock` errors.
+/// The `max_timeout` parameter specifies the maximum timeout for the write operation.
+/// If the write operation takes longer than this timeout, an error will be returned.
+/// # Arguments
+/// * `stream` - The UnixStream to write to.
+/// * `buf` - The buffer to write the data from.
+/// * `max_timeout` - The maximum timeout for the write operation (in milliseconds).
+/// # Returns
+/// A Result indicating success or failure.
+/// # Errors
+/// If the stream is closed before writing the expected amount of data, or if a timeout occurs.
+pub async fn write_all(stream: &mut UnixStream, buf: &[u8], max_timeout: u64) -> Result<(), std::io::Error> {
     let mut total_written = 0;
     let mut delay = 5;
 
     loop {
-        match timeout(std::time::Duration::from_millis(10000), stream.writable()).await {
+        match timeout(std::time::Duration::from_millis(max_timeout), stream.writable()).await {
             Ok(Ok(_)) => {}
             Ok(Err(e)) => return Err(e),
             Err(_) => {
-                if delay > 10000 {
+                if delay > max_timeout {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::TimedOut,
                         "Timeout Writing!",
@@ -95,7 +121,7 @@ pub async fn write_all(stream: &mut UnixStream, buf: &[u8]) -> Result<(), std::i
                     return Err(e);
                 } else {
                     sleep(std::time::Duration::from_millis(delay)).await;
-                    delay = (delay * 2).min(10000); // Exponential backoff with a max delay
+                    delay = (delay * 2).min(max_timeout); // Exponential backoff with a max delay
                     continue;
                 }
             }
