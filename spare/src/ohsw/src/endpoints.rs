@@ -328,10 +328,17 @@ async fn start_instance(
 
             info!("Successfully read response from instance: {}", instance.id);
 
-            match stream.shutdown().await {
-                Ok(_) => {},
+            match stream.into_std() {
+                Ok(std_stream) => {
+                    match std_stream.shutdown(std::net::Shutdown::Both) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("Error shutting down vsocket: {}", e);
+                        }
+                    }
+                },
                 Err(e) => {
-                    error!("Error shutting down vsocket: {}", e);
+                    error!("Error in obtaining std stream: {}", e);
                 }
             }
 
