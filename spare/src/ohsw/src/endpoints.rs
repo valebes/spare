@@ -334,7 +334,7 @@ async fn start_instance(
             match write_all(&mut stream, ack, 10000).await {
                 Ok(_) => {}
                 Err(e) => {
-                    error!("Error: can't write ack to instance", e);
+                    error!("Error: can't write ack to instance {}", e);
                 }
             }
 
