@@ -328,13 +328,10 @@ async fn start_instance(
 
             info!("Successfully read response from instance: {}", instance.id);
 
-            // Write ACK to the instance
-            let ack = b"ack";
-            // TODO: Specify the timeout
-            match write_all(&mut stream, ack, 10000).await {
-                Ok(_) => {}
+            match stream.shutdown().await {
+                Ok(_) => {},
                 Err(e) => {
-                    error!("Error: can't write ack to instance {}", e);
+                    error!("Error shutting down vsocket: {}", e);
                 }
             }
 
