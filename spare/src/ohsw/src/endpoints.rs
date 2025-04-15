@@ -248,7 +248,7 @@ async fn start_instance(
 
             let mut buf = [0; 5];
             // Read from the vsock socket
-            match read_exact(&mut stream, &mut buf, 1000).await { // 500ms Timeout for machine to be ready
+            match read_exact(&mut stream, &mut buf, 500).await { // 500ms Timeout for machine to be ready
                 Ok(_) => {}
                 Err(e) => {
                     error!("Error reading from vsocket: {}", e);
