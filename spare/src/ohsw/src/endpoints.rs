@@ -163,10 +163,15 @@ async fn start_instance(
     */
     let builder = firecracker_builder;
 
+
+    let start = Instant::now();
     // Create new instance
     let fc_instance = builder
         .new_instance(data.image.clone(), data.vcpus, data.memory)
         .await;
+
+    let duration = start.elapsed();
+    error!("Time to create instance: {} ms", duration.as_millis());
 
     match fc_instance {
         Ok(mut fc_instance) => {
@@ -211,6 +216,7 @@ async fn start_instance(
                 instance.id
             );
 
+            let start = Instant::now();
             // Start instance
             match fc_instance.start().await {
                 Ok(_) => {}
@@ -221,8 +227,12 @@ async fn start_instance(
                 }
             }
 
+            let duration = start.elapsed();
+            error!("Time to start instance: {} ms", duration.as_millis());
+
             info!("Starting instance: {} ip: {}", instance.id, instance.ip);
 
+            let start = Instant::now();
             let mut stream = match timeout(Duration::from_millis(500), socket.accept()).await {
                 Ok(res) => match res {
                     Ok((stream, _)) => stream,
@@ -240,12 +250,16 @@ async fn start_instance(
                 }
             };
 
+            let duration = start.elapsed();
+            error!("Time to accept vsock: {} ms", duration.as_millis());
+
             info!(
                 "Socket accepted: {}, for instance {}",
                 stream.as_raw_fd(),
                 instance.id
             );
 
+            let start = Instant::now();
             let mut buf = [0; 5];
             // Read from the vsock socket
             match read_exact(&mut stream, &mut buf, 500).await { // 500ms Timeout for machine to be ready
@@ -256,6 +270,9 @@ async fn start_instance(
                     return Err(InstanceError::VSock);
                 }
             }
+
+            let duration = start.elapsed();
+            error!("Time to read from vsock: {} ms", duration.as_millis());
 
             let message: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buf);
 
@@ -275,6 +292,7 @@ async fn start_instance(
                 }
             }
 
+            let start = Instant::now();
             // Write payload in the vsock socket
             match &data.payload {
                 Some(payload) => {
@@ -299,6 +317,11 @@ async fn start_instance(
                 None => {}
             }
 
+            let duration = start.elapsed();
+            error!("Time to write payload to vsock: {} ms", duration.as_millis());
+
+
+            let start = Instant::now();
             // Read the length of the response
             info!("Reading length of response from instance: {}", instance.id);
             let mut len = [0; 8];
@@ -325,6 +348,9 @@ async fn start_instance(
                     return Err(InstanceError::VSock);
                 }
             }
+
+            let duration = start.elapsed();
+            error!("Time to read response from vsock: {} ms", duration.as_millis());
 
             info!("Successfully read response from instance: {}", instance.id);
 
