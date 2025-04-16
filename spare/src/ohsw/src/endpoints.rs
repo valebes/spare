@@ -286,7 +286,7 @@ async fn start_instance(
                     buf[0..8].copy_from_slice(&len.to_be_bytes());
                     buf[8..].copy_from_slice(payload.as_bytes());
                     // TODO: Specify the timeout
-                    match write_all(&mut stream, &buf, 1000).await {
+                    match write_all(&mut stream, &buf, 500).await {
                         Ok(_) => {}
                         Err(e) => {
                             error!("Error writing to vsocket: {}", e);
