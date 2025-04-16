@@ -17,21 +17,32 @@ use log::error;
 /// A Result indicating success or failure.
 /// # Errors
 /// If the stream is closed before reading the expected amount of data, or if a timeout occurs.
-pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8], max_timeout: u64) -> Result<(), std::io::Error> {
+pub async fn read_exact(
+    stream: &mut UnixStream,
+    buf: &mut [u8],
+    max_timeout: u64,
+) -> Result<(), std::io::Error> {
     let mut total_read = 0;
     let mut delay = 2;
+    let mut total_timeout = 0;
 
     loop {
-        match timeout(std::time::Duration::from_millis(max_timeout), stream.readable()).await {
+        if total_timeout > max_timeout {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "Timeout Reading!",
+            ));
+        }
+        
+        match timeout(
+            std::time::Duration::from_millis(500),
+            stream.readable(),
+        )
+        .await
+        {
             Ok(Ok(_)) => {}
             Ok(Err(e)) => return Err(e),
             Err(_) => {
-                if delay > max_timeout {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::TimedOut,
-                        "Timeout Reading!",
-                    ));
-                }
                 continue;
             }
         }
@@ -59,7 +70,8 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8], max_timeout: u6
                     return Err(e);
                 } else {
                     sleep(std::time::Duration::from_millis(delay)).await;
-                    delay = (delay * 2).min(max_timeout); // Exponential backoff with a max delay
+                    total_timeout += delay;
+                    delay = (delay * 2).min(500); // Exponential backoff with a max delay
                     continue;
                 }
             }
@@ -81,21 +93,32 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8], max_timeout: u6
 /// A Result indicating success or failure.
 /// # Errors
 /// If the stream is closed before writing the expected amount of data, or if a timeout occurs.
-pub async fn write_all(stream: &mut UnixStream, buf: &[u8], max_timeout: u64) -> Result<(), std::io::Error> {
+pub async fn write_all(
+    stream: &mut UnixStream,
+    buf: &[u8],
+    max_timeout: u64,
+) -> Result<(), std::io::Error> {
     let mut total_written = 0;
     let mut delay = 2;
+    let mut total_timeout = 0;
 
     loop {
-        match timeout(std::time::Duration::from_millis(max_timeout), stream.writable()).await {
+        if total_timeout > max_timeout {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "Timeout Writing!",
+            ));
+        }
+
+        match timeout(
+            std::time::Duration::from_millis(500),
+            stream.writable(),
+        )
+        .await
+        {
             Ok(Ok(_)) => {}
             Ok(Err(e)) => return Err(e),
             Err(_) => {
-                if delay > max_timeout {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::TimedOut,
-                        "Timeout Writing!",
-                    ));
-                }
                 continue;
             }
         }
@@ -121,7 +144,8 @@ pub async fn write_all(stream: &mut UnixStream, buf: &[u8], max_timeout: u64) ->
                     return Err(e);
                 } else {
                     sleep(std::time::Duration::from_millis(delay)).await;
-                    delay = (delay * 2).min(max_timeout); // Exponential backoff with a max delay
+                    total_timeout += delay;
+                    delay = (delay * 2).min(500); // Exponential backoff with a max delay
                     continue;
                 }
             }

@@ -1,4 +1,9 @@
-use std::{os::fd::AsRawFd, sync::Arc, time::{Duration, Instant}, vec};
+use std::{
+    os::fd::AsRawFd,
+    sync::Arc,
+    time::{Duration, Instant},
+    vec,
+};
 
 use actix_web::{
     get, post,
@@ -163,7 +168,6 @@ async fn start_instance(
     */
     let builder = firecracker_builder;
 
-
     let start = Instant::now();
     // Create new instance
     let fc_instance = builder
@@ -262,7 +266,8 @@ async fn start_instance(
             let start = Instant::now();
             let mut buf = [0; 5];
             // Read from the vsock socket
-            match read_exact(&mut stream, &mut buf, 500).await { // 500ms Timeout for machine to be ready
+            match read_exact(&mut stream, &mut buf, 500).await {
+                // 500ms Timeout for machine to be ready
                 Ok(_) => {}
                 Err(e) => {
                     error!("Error reading from vsocket: {}", e);
@@ -318,8 +323,10 @@ async fn start_instance(
             }
 
             let duration = start.elapsed();
-            error!("Time to write payload to vsock: {} ms", duration.as_millis());
-
+            error!(
+                "Time to write payload to vsock: {} ms",
+                duration.as_millis()
+            );
 
             let start = Instant::now();
             // Read the length of the response
@@ -350,17 +357,18 @@ async fn start_instance(
             }
 
             let duration = start.elapsed();
-            error!("Time to read response from vsock: {} ms", duration.as_millis());
+            error!(
+                "Time to read response from vsock: {} ms",
+                duration.as_millis()
+            );
 
             info!("Successfully read response from instance: {}", instance.id);
 
             match stream.into_std() {
-                Ok(std_stream) => {
-                    match std_stream.shutdown(std::net::Shutdown::Both) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("Error shutting down vsocket: {}", e);
-                        }
+                Ok(std_stream) => match std_stream.shutdown(std::net::Shutdown::Both) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("Error shutting down vsocket: {}", e);
                     }
                 },
                 Err(e) => {

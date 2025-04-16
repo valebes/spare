@@ -286,8 +286,8 @@ async fn main() -> std::io::Result<()> {
             .service(resources)
             .service(emergency)
     })
-    .bind(("0.0.0.0", 8085))?
     .backlog(2048)
+    .bind(("0.0.0.0", 8085))?
     .disable_signals()
     .run();
 

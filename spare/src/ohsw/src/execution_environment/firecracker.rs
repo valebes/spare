@@ -87,10 +87,10 @@ impl FirecrackerBuilder {
                     .map_err(|e| FirepilotError::Unknown(format!("Failed to lock network: {}", e)))?
                     .release(ip);
                 Err(FirepilotError::Unknown(format!(
-                "Failed to create instance: {}",
-                e
-            )))
-            },
+                    "Failed to create instance: {}",
+                    e
+                )))
+            }
         }
     }
 }
