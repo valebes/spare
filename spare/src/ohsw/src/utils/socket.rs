@@ -19,7 +19,7 @@ use log::error;
 /// If the stream is closed before reading the expected amount of data, or if a timeout occurs.
 pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8], max_timeout: u64) -> Result<(), std::io::Error> {
     let mut total_read = 0;
-    let mut delay = 5;
+    let mut delay = 2;
 
     loop {
         match timeout(std::time::Duration::from_millis(max_timeout), stream.readable()).await {
@@ -83,7 +83,7 @@ pub async fn read_exact(stream: &mut UnixStream, buf: &mut [u8], max_timeout: u6
 /// If the stream is closed before writing the expected amount of data, or if a timeout occurs.
 pub async fn write_all(stream: &mut UnixStream, buf: &[u8], max_timeout: u64) -> Result<(), std::io::Error> {
     let mut total_written = 0;
-    let mut delay = 5;
+    let mut delay = 2;
 
     loop {
         match timeout(std::time::Duration::from_millis(max_timeout), stream.writable()).await {

@@ -79,10 +79,18 @@ impl FirecrackerBuilder {
                 info!("Created instance with IP address: {}", ip);
                 Ok(instance)
             }
-            Err(e) => Err(FirepilotError::Unknown(format!(
+            Err(e) => {
+                info!("Failed to create instance: {}", e);
+                // Release IP address
+                self.network
+                    .lock()
+                    .map_err(|e| FirepilotError::Unknown(format!("Failed to lock network: {}", e)))?
+                    .release(ip);
+                Err(FirepilotError::Unknown(format!(
                 "Failed to create instance: {}",
                 e
-            ))),
+            )))
+            },
         }
     }
 }
