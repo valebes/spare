@@ -14,7 +14,7 @@ pub mod models;
 pub async fn establish_connection() -> Result<Pool<sqlite::Sqlite>, sqlx::Error> {
     if cfg!(test) {
         let pool = SqlitePoolOptions::new()
-            .max_connections(100)
+            .max_connections(10)
             .connect(":memory:")
             .await?;
         sqlx::migrate!().run(&pool).await?;
@@ -23,7 +23,7 @@ pub async fn establish_connection() -> Result<Pool<sqlite::Sqlite>, sqlx::Error>
     } else {
         let env = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
         let pool = SqlitePoolOptions::new()
-            .max_connections(100)
+            .max_connections(10)
             .connect(&env)
             .await?;
         sqlx::migrate!().run(&pool).await?;
