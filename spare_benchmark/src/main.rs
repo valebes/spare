@@ -180,7 +180,7 @@ async fn test(
                                 break;
                             } else {
                                 error!("Error: {}", res.text().await.unwrap());
-                                sleep(Duration::from_millis(10)).await; // Retry after 100ms TODO: Revise this
+                                sleep(Duration::from_millis(10)).await; // Retry after 10ms TODO: Revise this
                                 total_time += end.duration_since(start).as_millis();
                                 failed_tmp.fetch_add(1, Ordering::SeqCst);
                                 continue;
