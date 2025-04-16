@@ -107,7 +107,7 @@ async fn test(
     function_path: &String,
     payload: &Option<String>,
 ) -> (u128, usize, usize, Vec<u128>) {
-    let request_per_epoch = ((8 * nodes.len()) as f32 * 1.0).floor() as usize; // 100% Load
+    let request_per_epoch = ((8 * nodes.len()) as f32 * 0.8).floor() as usize; // 100% Load
 
     let inter_arrival = 11; // ms
     let mut latency_per_epoch = Vec::new();
