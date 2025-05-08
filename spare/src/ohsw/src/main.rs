@@ -1,19 +1,11 @@
 //! SPARE Serverless Platform
 //! SPARE is a serverless platform that aims to provide a scalable and efficient serverless platform for edge computing.
 //! The code provided here is a prototype of the SPARE platform.
-#![feature(extract_if)]
-#![feature(future_join)]
-use std::{
-    env,
-    fs::File,
-    io::Write,
-    net::Ipv4Addr,
-    path::Path,
-    str::FromStr,
-    sync::{Arc, Mutex, RwLock},
+use actix_web::{
+    middleware,
+    web::{Data, JsonConfig},
+    App, HttpServer,
 };
-
-use actix_web::{middleware, web::Data, App, HttpServer};
 use clap::{arg, command, Parser};
 use local_ip_address::local_ip;
 use log::{error, info};
@@ -23,11 +15,24 @@ use ohsw::{
     execution_environment::firecracker::FirecrackerBuilder,
     net::{
         addresses::Addresses,
-        iggy::{IggyConnector, Operation},
+        iggy::{IggyConnector, Operation, Payload},
     },
-    orchestrator::{self, global_resources::Node, Orchestrator},
+    orchestrator::{
+        self,
+        global::{emergency::Emergency, identity::Node},
+        Orchestrator,
+    },
 };
 use sqlx::{sqlite, Pool};
+use std::{
+    env,
+    fs::File,
+    io::Write,
+    net::Ipv4Addr,
+    path::Path,
+    str::FromStr,
+    sync::{Arc, Mutex},
+};
 
 // Struct that represents the supported arguments for the executable
 #[derive(Parser, Debug)]
@@ -70,35 +75,54 @@ async fn emergency_controller(
     loop {
         match iggy_client.receive_message().await {
             Ok(Some(msg)) => match msg.op {
-                Operation::START_EMERGENCY => {
-                    let node = msg.payload.unwrap().remove(0);
-                    orchestrator.set_emergency(true, node.position, 50.0); // RADIUS = 50
-                }
+                Operation::START_EMERGENCY => match msg.payload {
+                    Some(Payload::Emergency(em_pos)) => {
+                        info!(
+                            "Emergency mode activated at position: {:?} with radius: {}",
+                            em_pos.position, em_pos.radius
+                        );
+                        orchestrator.set_emergency(true, em_pos);
+                    }
+                    _ => continue,
+                },
                 Operation::STOP_EMERGENCY => {
-                    orchestrator.set_emergency(false, (0, 0), 0.0);
+                    orchestrator.set_emergency(
+                        false,
+                        Emergency {
+                            position: (0.0, 0.0),
+                            radius: 0.0,
+                        },
+                    );
+                    info!("Emergency mode deactivated");
                 }
                 Operation::END => break,
-                Operation::WRITE_STATS => {
-                    let start = msg.payload.clone().unwrap().remove(0).address;
-                    let end = msg.payload.unwrap().remove(1).address;
-                    let mut stats = db::stats(&pool, &start, &end).await;
-                    loop {
-                        if stats.is_err() {
-                            stats = db::stats(&pool, &start, &end).await;
-                        } else {
-                            break;
+                Operation::WRITE_STATS => match msg.payload {
+                    Some(Payload::Period(period)) => {
+                        info!(
+                            "Writing stats for period: {} - {}",
+                            period.start, period.end
+                        );
+                        let start = period.start;
+                        let end = period.end;
+                        let mut stats = db::stats(&pool, &start, &end).await;
+                        loop {
+                            if stats.is_err() {
+                                stats = db::stats(&pool, &start, &end).await;
+                            } else {
+                                break;
+                            }
                         }
+                        let stats = stats.unwrap();
+                        writeln!(
+                            file,
+                            "{:<15} {:<10} {:<10} {:<10} {:<10}",
+                            eras, stats.hops_avg, stats.vcpus, stats.memory, stats.requests
+                        )
+                        .unwrap();
+                        eras += 1;
                     }
-
-                    let stats = stats.unwrap();
-                    writeln!(
-                        file,
-                        "{:<15} {:<10} {:<10} {:<10} {:<10}",
-                        eras, stats.hops_avg, stats.vcpus, stats.memory, stats.requests
-                    )
-                    .unwrap();
-                    eras += 1;
-                }
+                    _ => continue,
+                },
                 _ => (),
             },
             Ok(None) => {
@@ -113,7 +137,7 @@ async fn emergency_controller(
     }
 }
 
-// Main function. It starts the server and the emergency controller/
+// Main function. It starts the server and the emergency controller
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
@@ -133,7 +157,7 @@ async fn main() -> std::io::Result<()> {
     // This is a temporary solution only used for the sake of the experiment.
     let identity = Node {
         address: format!("{worker_address}:{worker_port}"),
-        position: (0, 0),
+        position: (0.0, 0.0),
     };
     info!("Registering node at {iggy_host}:{iggy_port}");
     let _ = iggy_client.register_node(identity.clone()).await;
@@ -145,8 +169,13 @@ async fn main() -> std::io::Result<()> {
         match iggy_client.receive_message().await {
             Ok(Some(message)) => {
                 if message.op == Operation::ADD_NODES {
-                    nodes = message.payload.unwrap();
-                    break;
+                    match message.payload {
+                        Some(Payload::Nodes(n)) => {
+                            nodes = n;
+                            break;
+                        }
+                        _ => continue,
+                    }
                 }
             }
             Ok(None) => continue,
@@ -158,8 +187,9 @@ async fn main() -> std::io::Result<()> {
 
     // Extract identity (this node) from the list of nodes
     let identity = nodes
-        .extract_if(|n| n.address == format!("{worker_address}:{worker_port}"))
-        .next()
+        .iter()
+        .position(|n| n.address == format!("{worker_address}:{worker_port}"))
+        .map(|i| nodes.remove(i))
         .unwrap();
     info!("Found {} nodes", nodes.len());
     for node in &nodes {
@@ -220,12 +250,12 @@ async fn main() -> std::io::Result<()> {
     .unwrap();
 
     // Create a new FirecrackerBuilder
-    let builder = Data::new(RwLock::new(FirecrackerBuilder::new(
+    let builder = Arc::new(FirecrackerBuilder::new(
         executable,
         kernel,
         bridge,
         addresses.clone(),
-    )));
+    ));
 
     let pool_clone = pool.clone();
 
@@ -246,8 +276,9 @@ async fn main() -> std::io::Result<()> {
     let server = HttpServer::new(move || {
         App::new()
             .wrap(middleware::Compress::default()) // Create option to enable or disable gzip compression
+            .app_data(JsonConfig::default().limit(1024 * 1024 * 50))
             .app_data(Data::new(pool_clone.clone()))
-            .app_data(builder.clone())
+            .app_data(Data::new(builder.clone()))
             .app_data(Data::new(orchestrator.clone()))
             .service(index)
             .service(list)
@@ -255,6 +286,7 @@ async fn main() -> std::io::Result<()> {
             .service(resources)
             .service(emergency)
     })
+    .backlog(2048)
     .bind(("0.0.0.0", 8085))?
     .disable_signals()
     .run();

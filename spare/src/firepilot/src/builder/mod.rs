@@ -72,6 +72,15 @@ pub enum BuilderError {
     /// Happens when using auto methods to detect firecracker /jailer binary
     BinaryNotFound(String),
 }
+impl std::fmt::Display for BuilderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BuilderError::MissingRequiredField(key) => write!(f, "Missing required field: {}", key),
+            BuilderError::BinaryNotFound(binary) => write!(f, "Binary not found: {}", binary),
+        }
+    }
+}
+impl std::error::Error for BuilderError {}
 
 /// Generic trait which all builder componenet must implement in order to be
 /// part of [Configuration]

@@ -16,7 +16,7 @@ MAIN_INTERFACE=enp1s0
 ## SETUP ##
 
 # Installing git and other things
-sudo apt update && sudo apt install -y build-essential pkg-config libssl-dev git
+sudo apt update && sudo apt install -y build-essential pkg-config libssl-dev sqlite3 git
 
 # Install rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -25,6 +25,10 @@ cargo install sqlx-cli
 
 # Enabling vhost-vsock
 sudo modprobe vhost_vsock
+
+# Check for the right permissions
+[ $(stat -c "%G" /dev/kvm) = kvm ] && sudo usermod -aG kvm ${USER} \
+&& echo "Access granted." || echo "Access denied."
 
 # Preparing adapter
 sudo ip link add name $BRIDGE_INTERFACE type bridge

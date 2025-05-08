@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "spare/src/*",
+    "spare_benchmark",
+]
+resolver = "2"

@@ -215,7 +215,11 @@ impl Tap {
     /// let tap = Tap::create("tap0").unwrap();
     /// ```
     pub fn create(name: &str) -> Result<Self, nix::Error> {
-        let raw = TapRaw::new(name).unwrap();
+        let raw = TapRaw::new(name);
+        if raw.is_err() {
+            return Err(raw.err().unwrap());
+        }
+        let raw = raw.unwrap();
 
         info!("Create tap {}", name);
         raw.set_persistent(true)?;

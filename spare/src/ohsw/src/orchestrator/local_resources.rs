@@ -46,12 +46,16 @@ impl LocalResources {
 
     /// Get the total memory of the node
     pub fn get_total_memory() -> usize {
-        let contents =
-            std::fs::read_to_string("/proc/meminfo").expect("Could not read /proc/meminfo");
-        let mem_info = contents
-            .lines()
-            .find(|line| line.starts_with("MemTotal"))
-            .expect("Could not find MemTotal line");
+        let contents = std::fs::read_to_string("/proc/meminfo");
+        if contents.is_err() {
+            return 0;
+        }
+        let contents = contents.unwrap();
+        let mem_info = contents.lines().find(|line| line.starts_with("MemTotal"));
+        if mem_info.is_none() {
+            return 0;
+        }
+        let mem_info = mem_info.unwrap();
         let size = mem_info.split_whitespace().nth(1).expect("Found the size");
         let total_mem = size.parse().unwrap();
         total_mem
@@ -59,14 +63,24 @@ impl LocalResources {
 
     /// Get the currently available free memory
     pub fn get_available_memory() -> usize {
-        let contents =
-            std::fs::read_to_string("/proc/meminfo").expect("Could not read /proc/meminfo");
+        let contents = std::fs::read_to_string("/proc/meminfo");
+        if contents.is_err() {
+            return 0;
+        }
+        let contents = contents.unwrap();
         let mem_info = contents
             .lines()
-            .find(|line| line.starts_with("MemAvailable"))
-            .expect("Could not find MemAvailable line");
+            .find(|line| line.starts_with("MemAvailable"));
+        if mem_info.is_none() {
+            return 0;
+        }
+        let mem_info = mem_info.unwrap();
 
-        let size = mem_info.split_whitespace().nth(1).expect("Found the size");
+        let size = mem_info.split_whitespace().nth(1);
+        if size.is_none() {
+            return 0;
+        }
+        let size = size.unwrap();
         let available_mem = size.parse().unwrap();
         available_mem
     }

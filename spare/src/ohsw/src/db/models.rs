@@ -39,7 +39,7 @@ impl Instance {
             ip,
             port,
             hops,
-            status: "unknown".to_string(),
+            status: "started".to_string(),
             created_at: chrono::Utc::now().naive_utc(),
         }
     }

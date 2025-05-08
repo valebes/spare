@@ -9,6 +9,6 @@ CREATE TABLE IF NOT EXISTS instances (
     ip TEXT NOT NULL,
     port INTEGER NOT NULL,
     hops INTEGER NOT NULL,
-    status TEXT NOT NULL CHECK(status IN ('launched', 'terminated', 'unknown')),
+    status TEXT NOT NULL CHECK(status IN ('started', 'terminated', 'failed')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL  
 );

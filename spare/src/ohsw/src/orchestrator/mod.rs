@@ -1,26 +1,47 @@
 //! Orchestrator module. It is responsible for managing the local resources and monitoring the remote nodes
-pub mod global_resources;
+pub mod global;
 mod local_resources;
+use std::{
+    sync::{Mutex, RwLock},
+    time::Instant,
+};
 
-use std::sync::{Mutex, RwLock};
-
-use crate::api::resources::Resources;
-use global_resources::Node;
-use instant_distance::Point;
+use crate::api::{self, invoke::InvokeFunction, resources::Resources};
+use actix_web::{web, HttpRequest, HttpResponse};
+use awc::{body::BoxBody, Client};
+use global::{
+    emergency::Emergency, geo_distance::GeoDistance, identity::Node, Distance, NeighborNode,
+    NeighborNodeList, NeighborNodeStrategy, NeighborNodeType,
+};
 use local_resources::LocalResources;
 use log::{error, info, warn};
+
+// TODO: Move this inside the node module
+
+pub enum InvokeError {
+    Unknown(String),
+}
+impl std::fmt::Display for InvokeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InvokeError::Unknown(msg) => write!(f, "Unknown error: {}", msg),
+        }
+    }
+}
 
 /// Error returned by the orchestrator
 pub enum OrchestratorError {
     InsufficientResources,
+    CannotAcquireResources,
 }
 
 /// Orchestrator. It is responsible for managing the local resources and monitoring the remote nodes
 /// available in the system.
 pub struct Orchestrator {
     in_emergency_area: Mutex<bool>,
-    resources: Mutex<local_resources::LocalResources>,
-    global_resources: RwLock<global_resources::GlobalResources>,
+    resources: RwLock<LocalResources>,
+    identity: Node,
+    global_resources: RwLock<NeighborNodeList>,
 }
 
 impl Orchestrator {
@@ -31,16 +52,49 @@ impl Orchestrator {
     /// # Returns
     /// * A new orchestrator
     pub fn new(nodes: Vec<Node>, identity: Node) -> Self {
+        let mut strategy = NeighborNodeStrategy::GeoDistance;
+        // Read the strategy from the environment
+        if let Ok(strategy_str) = std::env::var("STRATEGY") {
+            match strategy_str.as_str() {
+                "SimpleCellular" => strategy = NeighborNodeStrategy::SimpleCellular,
+                "GeoDistance" => strategy = NeighborNodeStrategy::GeoDistance,
+                "SmartLatency" => strategy = NeighborNodeStrategy::SmartLatency,
+                _ => error!("Unknown strategy: {}.", strategy_str),
+            }
+        }
+
+        let mut neighbor_nodes = NeighborNodeList::new(strategy);
+        for node in nodes {
+            neighbor_nodes.add_node(node.address, node.position);
+        }
+
+        // Sort the nodes based on the strategy
+        neighbor_nodes.sort(&mut GeoDistance::new(identity.position, "".to_string()));
+
         Self {
             in_emergency_area: Mutex::new(false),
-            resources: Mutex::new(local_resources::LocalResources::new()),
-            global_resources: RwLock::new(global_resources::GlobalResources::new(nodes, identity)),
+            resources: RwLock::new(LocalResources::new()),
+            identity: identity,
+            global_resources: RwLock::new(neighbor_nodes),
         }
     }
 
+    /// Get Strategy
+    pub fn get_strategy(&self) -> NeighborNodeStrategy {
+        self.global_resources.read().unwrap().strategy()
+    }
+
+    /// Sort the nodes based on the strategy
+    pub fn sort_nodes(&mut self) {
+        self.global_resources
+            .write()
+            .unwrap()
+            .sort(&mut self.identity);
+    }
+
     /// Get the identity of the node itself
-    pub fn get_identity(&self) -> Node {
-        self.global_resources.read().unwrap().identity.clone()
+    pub fn get_identity(&self) -> &Node {
+        &self.identity
     }
 
     /// Get if the node is in the emergency area
@@ -49,49 +103,208 @@ impl Orchestrator {
     }
 
     /// Set the emergency mode
-    pub fn set_emergency(&self, emergency: bool, emergency_point: (i32, i32), radius: f32) {
+    pub fn set_emergency(&self, emergency: bool, mut em_pos: Emergency) {
+        let mut lock = self.global_resources.write().unwrap();
         if emergency {
             info!(
                 "Entering emergency mode. Emergency point: {:?}",
-                emergency_point
+                em_pos.position
             );
-            let mut lock = self.global_resources.write().unwrap();
-            lock.compute_emergency_nodes(emergency_point, radius);
-            if lock.identity.distance(&Node {
-                address: "emergency".to_string(),
-                position: emergency_point,
-            }) <= radius
-            {
+            lock.set_emergency(em_pos);
+            let radius = em_pos.radius;
+            if self.get_identity().distance(&mut em_pos) <= radius {
                 error!("Node is in the emergency zone");
                 *self.in_emergency_area.lock().unwrap() = true;
             }
         } else {
             info!("Leaving emergency mode");
-            self.global_resources
-                .write()
-                .unwrap()
-                .clean_emergency_nodes();
+            lock.clear_emergency();
             *self.in_emergency_area.lock().unwrap() = false;
         }
     }
 
     /// Get the number of available nodes
     pub fn number_of_nodes(&self) -> usize {
-        self.global_resources.read().unwrap().len()
-            - self.global_resources.read().unwrap().emergency_nodes.len()
+        let lock = self.global_resources.read().unwrap();
+        // Count the number of nodes that are not in emergency mode
+        let res = lock.nodes.iter().filter(|node| !node.emergency()).count();
+        info!(
+            "Total Number of Nodes: {}, Nodes Available: {}",
+            lock.nodes.len(),
+            res
+        );
+        res
+    }
+
+    /// Given a node, find it in the list and return a mutable reference to it
+    pub fn contains<'a>(
+        &self,
+        node: &mut NeighborNodeType,
+        node_list: &'a mut NeighborNodeList,
+    ) -> Option<&'a mut NeighborNodeType> {
+        // Check if the node is in the list
+        for n in node_list.nodes.iter_mut() {
+            if n.address() == node.address() {
+                return Some(n);
+            }
+        }
+        None
     }
 
     /// Get the nth node available in the system
-    pub fn get_remote_nth_node(&self, index: usize) -> Option<Node> {
-        self.global_resources.read().unwrap().nth(index)
+    pub fn get_remote_nth_node(
+        &self,
+        identity: &mut Node,
+        index: usize,
+    ) -> Option<NeighborNodeType> {
+        let mut node_list = self.global_resources.write().unwrap();
+        // Check the strategy
+        match node_list.strategy() {
+            NeighborNodeStrategy::SimpleCellular => {
+                node_list.sort(identity);
+            }
+            NeighborNodeStrategy::SmartLatency => {
+                node_list.sort(identity);
+            }
+            _ => {} // Already sorted
+        }
+
+        let node = node_list.get_nth(index);
+        match node {
+            Some(node) => {
+                if node.emergency() {
+                    error!("Node is in emergency mode");
+                    return None;
+                }
+                Some(node)
+            }
+            None => {
+                error!("Node not found");
+                None
+            }
+        }
     }
 
     /// Get the resources available in the node
     pub fn get_resources(&self) -> Resources {
         Resources {
-            cpus: self.resources.lock().unwrap().get_available_cpus(),
+            cpus: self.resources.read().unwrap().get_available_cpus(),
             memory: LocalResources::get_available_memory(),
         }
+    }
+
+    /// Method to offload a function to a remote node
+    pub async fn offload(
+        &self,
+        data: web::Json<InvokeFunction>,
+        req: HttpRequest,
+    ) -> HttpResponse<BoxBody> {
+        let cpus = data.vcpus;
+        let memory = data.memory;
+
+        // Iterate over the nodes
+        warn!("Function must be offloaded");
+        for i in 0..self.number_of_nodes() {
+            warn!("Checking node: {}", i);
+            match self.get_remote_nth_node(&mut self.identity.clone(), i) {
+                Some(node) => {
+                    // Do not forward request to origin
+                    if node
+                        .address()
+                        .contains(req.peer_addr().unwrap().ip().to_string().as_str())
+                    {
+                        continue;
+                    }
+
+                    // Check if resource are available on the remote node
+                    let client = Client::default();
+                    let response = client
+                        .get(format!("http://{}/resources", node.address()))
+                        .send()
+                        .await;
+                    if response.is_ok() {
+                        let remote_resources =
+                            response.unwrap().json::<api::resources::Resources>().await;
+                        if remote_resources.is_err() {
+                            // Cannot get resources from remote node, continue
+                            continue;
+                        }
+                        match remote_resources {
+                            Ok(remote_resources) => {
+                                // Check if resources are available
+                                let cpus = remote_resources.cpus.checked_sub(cpus as usize);
+                                // Memory is in MB, so multiply by 1024
+                                let memory = remote_resources
+                                    .memory
+                                    .checked_sub((memory * 1024) as usize);
+                                // If resources are available, forward request
+                                if cpus.is_some() && memory.is_some() {
+                                    warn!("Forwarding request to {}", node.address());
+
+                                    let start = Instant::now();
+                                    let body = node.invoke(data.clone()).await;
+                                    let elapsed = start.elapsed();
+
+                                    info!(
+                                        "Request to {} took: {} ms",
+                                        node.address(),
+                                        elapsed.as_millis()
+                                    );
+
+                                    match body {
+                                        Ok(body) => {
+                                            error!(
+                                                "Successfully forwarded request to {}",
+                                                node.address()
+                                            );
+                                            // If the chosen sttrategy is latency-based, update the latency
+                                            // of the node
+                                            match node {
+                                                NeighborNodeType::Latency(node) => {
+                                                    let mut node_list =
+                                                        self.global_resources.write().unwrap();
+                                                    let n_ref = self
+                                                        .contains(
+                                                            &mut NeighborNodeType::Latency(node),
+                                                            &mut node_list,
+                                                        )
+                                                        .unwrap();
+                                                    match n_ref {
+                                                        NeighborNodeType::Latency(n_ref) => {
+                                                            n_ref.update_latency(
+                                                                elapsed.as_millis() as f64,
+                                                            );
+                                                        }
+                                                        _ => {}
+                                                    }
+                                                }
+
+                                                _ => {}
+                                            }
+                                            return HttpResponse::Ok().body(body);
+                                        }
+                                        Err(e) => {
+                                            error!(
+                                                "Failed to forward request to {}, error: {}!",
+                                                node.address(),
+                                                e
+                                            );
+                                            continue;
+                                        }
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                // Cannot get resources from remote node, continue
+                                continue;
+                            }
+                        }
+                    }
+                }
+                None => break,
+            }
+        }
+        return HttpResponse::InternalServerError().body("Insufficient resources\n");
     }
 
     /// Check if the resources are available and acquire them
@@ -108,7 +321,13 @@ impl Orchestrator {
         memory: usize,
     ) -> Result<(), OrchestratorError> {
         info!("Requested {} cpus and {} MB", cpus, memory / 1024);
-        let mut current_resources = self.resources.lock().unwrap();
+        let mut current_resources = match self.resources.write() {
+            Ok(resources) => resources,
+            Err(_) => {
+                error!("Cannot acquire resources");
+                return Err(OrchestratorError::CannotAcquireResources);
+            }
+        };
 
         if cpus > current_resources.get_available_cpus() {
             warn!(
@@ -135,6 +354,6 @@ impl Orchestrator {
     /// Release the resources
     pub fn release_resources(&self, cpus: usize) -> Result<(), OrchestratorError> {
         info!("Releasing {} cpus", cpus);
-        self.resources.lock().unwrap().release_cpus(cpus)
+        self.resources.write().unwrap().release_cpus(cpus)
     }
 }
