@@ -1,71 +1,63 @@
-use std::net::{TcpStream, TcpListener};
-use std::io::{Read, Write};
-use libflate::gzip::Encoder;
-use chunked_transfer::Encoder as OtherEncoder;
-use vsock::{VsockAddr, VsockStream};
-
-
-use crate::mandelbrot::mandelbrot;
-
-
-fn handle_read(mut stream: &TcpStream) {
-    let mut buf = [0u8 ;4096];
-    match stream.read(&mut buf) {
-        Ok(_) => {
-            let req_str = String::from_utf8_lossy(&buf);
-            println!("{}", req_str);
-            },
-        Err(e) => println!("Unable to read stream: {}", e),
-    }
-}
-
-fn handle_write(mut stream: TcpStream, encoded: Vec<u8>) {
-    let headers = [
-        "HTTP/1.1 200 OK",
-        "Content-type: image/png", // Deped on the content type
-        "Content-Encoding: gzip",
-        "Transfer-Encoding: chunked",
-        &String::from("Content-Length: " .to_owned()+ &encoded.len().to_string()),
-        "\r\n"
-    ];
-    let mut response = headers.join("\r\n")
-        .to_string()
-        .into_bytes();
-    response.extend(encoded);
-
-    match stream.write(&response) {
-        Ok(_) => println!("Response sent"),
-        Err(e) => println!("Failed sending response: {}", e),
-    }
-}
-
-fn handle_client(stream: TcpStream, buf: Vec<u8>) {
-    handle_read(&stream);
-    handle_write(stream, buf);
-}
-
-fn main() {   
+fn main() {
     // Let the orchestrator know we're ready
-    let mut vsock = VsockStream::connect(&VsockAddr::new(2, 1234)).expect("Failed to connect"); 
-    vsock.write(b"ready").expect("Failed to write");
-    vsock.flush().expect("Failed to flush");
-    
-    // We listen for incoming connections on port 8084
-    let listener = TcpListener::bind("0.0.0.0:8084").unwrap();
-    println!("Listening for connections on port {}", 8084);
-    
-    for stream in listener.incoming() {
+    let mut vsock = VsockStream::connect(&VsockAddr::new(2, 1234)).expect("Failed to connect");
+    vsock.set_nonblocking(true).expect("Failed to set non-blocking");
 
-        match stream {
-            Ok(stream) => {
-                thread::spawn(|| {
-                    let buffer =  todo!(); // Generate the answer
-                    handle_client(stream, buffer);
-                });
-            }
+    let buf = b"ready";
+    let mut bytes_written = 0;
+    while bytes_written < buf.len() {
+        match vsock.write(&buf[bytes_written..]) {
+            Ok(n) => bytes_written += n,
+            Err(e) => println!("Failed to write to VsockStream: {}", e),
+        }
+    }
+
+    vsock.flush().expect("Failed to flush");
+
+    let mut buf_len = [0u8; 8];
+    let mut bytes_read = 0;
+    while bytes_read < 8 {
+        match vsock.read(&mut buf_len[bytes_read..]) {
+            Ok(n) => bytes_read += n,
             Err(e) => {
-                println!("Unable to connect: {}", e);
+                println!("Failed to read from VsockStream: {}", e);
+                return;
             }
         }
     }
+
+    let len = u64::from_be_bytes(buf_len);
+    let mut buf = vec![0u8; len as usize];
+    bytes_read = 0;
+    while bytes_read < len as usize {
+        match vsock.read(&mut buf[bytes_read..]) {
+            Ok(n) => bytes_read += n,
+            Err(e) => {
+                println!("Failed to read from VsockStream: {}", e);
+                return;
+            }
+        }
+    }
+    println!("Received {} bytes", len);
+
+    let mut buffer = handler(buf); // Call to the function
+    println!("Output generated!");
+
+    // Write back the result
+    let len = buffer.len();
+    let mut buf = len.to_be_bytes().to_vec();
+    buf.append(&mut buffer);
+
+    let mut bytes_written = 0;
+    while bytes_written < buf.len() {
+        match vsock.write(&buf[bytes_written..]) {
+            Ok(n) => bytes_written += n,
+            Err(e) => {
+                println!("Failed to write to VsockStream: {}", e);
+                return;
+            }
+        }
+    }
+    vsock.flush().expect("Failed to flush");
+    let _ = vsock.shutdown(std::net::Shutdown::Both);
 }
