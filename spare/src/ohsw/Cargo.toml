@@ -30,4 +30,8 @@ rand = "0.9.0"
 rand_distr = "0.5.1"
 longitude = "0.2.1"
 dyn-clone = "1.0.19"
-
+limes = { git = "https://github.com/ViktorShell/Limes.git"}
+wasmtime = "30.0.2"
+wasmtime-wasi = "30.0.2"
+anyhow = "1.0.99"
+tokio = { version = "1.47.1", features = ["full"] }
