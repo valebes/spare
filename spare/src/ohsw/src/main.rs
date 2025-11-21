@@ -127,15 +127,15 @@ async fn main() -> std::io::Result<()> {
     let config = CONFIG.get().unwrap();
 
     // Fetch broker address/port from config
-    let iggy_host = config.broker.address;
-    let iggy_port = config.broker.port;
+    let iggy_host = &config.broker.address;
+    let iggy_port = &config.broker.port;
 
     // Connect to the Iggy message broker
     let iggy_client = IggyConnector::new(&format!("{iggy_host}:{iggy_port}")).await;
 
     // Registering Phase
     let worker_address = local_ip().unwrap();
-    let worker_port = config.general.port;
+    let worker_port = &config.general.port;
 
     // Register Node with (0, 0) position, we will update it later.
     // This is a temporary solution only used for the sake of the experiment.
@@ -189,12 +189,12 @@ async fn main() -> std::io::Result<()> {
 
     // Fetch the Firecracker executable and the Nanos kernel
     // These must be set in the environment variables FIRECRACKER_EXECUTABLE and NANOS_KERNEL
-    let executable = config.firecracker.executable;
+    let executable = &config.firecracker.executable;
 
-    let kernel = config.firecracker.nanos_kernel;
+    let kernel = &config.firecracker.nanos_kernel;
 
     // Fetch the bridge name from config
-    let bridge = config.network.bridge;
+    let bridge = &config.network.bridge;
 
     // Establish connection to the database
     let pool = db::establish_connection().await.unwrap();
