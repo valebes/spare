@@ -26,4 +26,3 @@ pub struct Args {
     #[arg(short, long)]
     pub config: Option<String>,
 }
-

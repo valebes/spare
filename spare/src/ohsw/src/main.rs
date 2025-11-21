@@ -17,8 +17,11 @@ use ohsw::{
         iggy::{IggyConnector, Operation, Payload},
     },
     orchestrator::{
-        self, Orchestrator, global::{emergency::Emergency, identity::Node}
-    }, utils::{config::CONFIG, parser::{ARGS, Args}},
+        self,
+        global::{emergency::Emergency, identity::Node},
+        Orchestrator,
+    },
+    utils::config::CONFIG,
 };
 use sqlx::{sqlite, Pool};
 use std::{
@@ -30,7 +33,6 @@ use std::{
     str::FromStr,
     sync::{Arc, Mutex},
 };
-
 
 // Controller that handles the emergency mode
 #[actix_web::main]

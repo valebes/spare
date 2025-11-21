@@ -33,13 +33,8 @@ pub async fn read_exact(
                 "Timeout Reading!",
             ));
         }
-        
-        match timeout(
-            std::time::Duration::from_millis(500),
-            stream.readable(),
-        )
-        .await
-        {
+
+        match timeout(std::time::Duration::from_millis(500), stream.readable()).await {
             Ok(Ok(_)) => {}
             Ok(Err(e)) => return Err(e),
             Err(_) => {
@@ -110,12 +105,7 @@ pub async fn write_all(
             ));
         }
 
-        match timeout(
-            std::time::Duration::from_millis(500),
-            stream.writable(),
-        )
-        .await
-        {
+        match timeout(std::time::Duration::from_millis(500), stream.writable()).await {
             Ok(Ok(_)) => {}
             Ok(Err(e)) => return Err(e),
             Err(_) => {
