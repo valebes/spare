@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 use crate::utils::parser::Args;
 
 #[derive(Debug, Default, serde::Deserialize, PartialEq, Eq)]
-struct General {
+pub struct General {
     #[serde(default = "default_server_addr")]
     pub server_addr: String,
     #[serde(default = "default_port")]
@@ -27,13 +27,13 @@ fn default_data_dir() -> String {
 }
 
 #[derive(Debug, Default, serde::Deserialize, PartialEq, Eq)]
-struct Network {
+pub struct Network {
     pub cidr: String,
     pub bridge: String,
 }
 
 #[derive(Debug, Default, serde::Deserialize, PartialEq, Eq)]
-struct Firecracker {
+pub struct Firecracker {
     pub executable: String,
     pub nanos_kernel: String,
 }
