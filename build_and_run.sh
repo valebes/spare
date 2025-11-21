@@ -6,7 +6,7 @@
 
 ## VARIABLES ##
 # CIDR for the bridge network
-CIDR=192.168.30.1/24
+CIDR=192.168.44.1/24
 # Bridge network interface
 BRIDGE_INTERFACE=br0
 # Broker address
@@ -22,7 +22,7 @@ DB_FILE=$ROOT_DIR/data/db.db
 # Firecracker executable
 FIRECRACKER_EXECUTABLE=$ROOT_DIR/data/firecracker
 
-rustup override set nightly
+rustup override set stable
 rustup update
 
 # Clean Previous Data
@@ -52,12 +52,30 @@ CREATE TABLE IF NOT EXISTS instances (
 );
 EOF
 
-DATABASE_URL=sqlite://$DB_FILE cargo sqlx prepare --workspace 
+DATABASE_URL=sqlite://$DB_FILE cargo sqlx prepare --workspace
+ 
 cargo build --release > /dev/null
+
+# Export environment variables for nested configuration keys
+export GENERAL__SERVER_ADDR=127.0.0.1
+export GENERAL__PORT=8085
+export GENERAL__DATA_DIR=$ROOT_DIR/data
+
+export NETWORK__CIDR=$CIDR
+export NETWORK__BRIDGE=$BRIDGE_INTERFACE
+
+export FIRECRACKER__EXECUTABLE=$FIRECRACKER_EXECUTABLE
+export FIRECRACKER__NANOS_KERNEL=$NANOS_KERNEL
+
+export BROKER__ADDRESS=$BROKER_ADDRESS
+export BROKER__PORT=$BROKER_PORT
+
+export DATABASE_URL=sqlite://$DB_FILE
+export RUST_LOG=INFO
 
 # Run the project
 echo "Running project..."
-sudo -E NANOS_KERNEL=$NANOS_KERNEL FIRECRACKER_EXECUTABLE=$FIRECRACKER_EXECUTABLE DATABASE_URL=sqlite://$DB_FILE RUST_LOG=WARN  ./target/release/ohsw --cidr $CIDR --broker-address $BROKER_ADDRESS --broker-port $BROKER_PORT --bridge-name $BRIDGE_INTERFACE 
+sudo -E ./target/release/ohsw --cidr $CIDR --broker-address $BROKER_ADDRESS --broker-port $BROKER_PORT --bridge-name $BRIDGE_INTERFACE
 
 # Clean Tap
 sudo ip link | awk -F: '/fc-/{print $2}' | xargs -I{} sudo ip link del {}

@@ -6,7 +6,7 @@
 
 ## VARIABLES ##
 # CIDR for the bridge network
-CIDR=192.168.30.1/24
+CIDR=192.168.44.1/24
 # Bridge network interface
 BRIDGE_INTERFACE=br0
 # Broker address
@@ -14,13 +14,16 @@ BROKER_ADDRESS=192.168.200.1
 # Broker port
 BROKER_PORT=8090
 # Root directory
-ROOT_DIR=$(dirname $(dirname $(realpath $0)))
+ROOT_DIR=$(dirname $(realpath $0))
 # Nanos kernel
 NANOS_KERNEL=$ROOT_DIR/data/kernel.img
 # Database URL
-DATABASE_URL=$ROOT_DIR/data/db.db
+DB_FILE=$ROOT_DIR/data/db.db
 # Firecracker executable
 FIRECRACKER_EXECUTABLE=$ROOT_DIR/data/firecracker
+
+rustup override set stable
+rustup update
 
 # Clean Previous Data
 rm node_*
@@ -28,17 +31,51 @@ rm node_*
 # Compile project
 echo "Building project..."
 
-DATABASE_URL=sqlite://db.db cargo sqlx prepare --workspace 
-cargo build --release > /dev/null
-
 # Clean db
 echo "Cleaning db..."
-rm -f db.db
-touch db.db
+rm -f "$DB_FILE"
+
+# SQL statement to create the table
+sqlite3 "$DB_FILE" <<EOF
+CREATE TABLE IF NOT EXISTS instances (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    functions TEXT NOT NULL,
+    kernel TEXT NOT NULL,
+    image TEXT NOT NULL,
+    vcpus INTEGER NOT NULL,
+    memory INTEGER NOT NULL,
+    ip TEXT NOT NULL,
+    port INTEGER NOT NULL,
+    hops INTEGER NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('started', 'terminated', 'failed')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL  
+);
+EOF
+
+DATABASE_URL=sqlite://$DB_FILE cargo sqlx prepare --workspace
+ 
+cargo build --release > /dev/null
+
+# Export environment variables for nested configuration keys
+export GENERAL__SERVER_ADDR=127.0.0.1
+export GENERAL__PORT=8085
+export GENERAL__DATA_DIR=$ROOT_DIR/data
+
+export NETWORK__CIDR=$CIDR
+export NETWORK__BRIDGE=$BRIDGE_INTERFACE
+
+export FIRECRACKER__EXECUTABLE=$FIRECRACKER_EXECUTABLE
+export FIRECRACKER__NANOS_KERNEL=$NANOS_KERNEL
+
+export BROKER__ADDRESS=$BROKER_ADDRESS
+export BROKER__PORT=$BROKER_PORT
+
+export DATABASE_URL=sqlite://$DB_FILE
+export RUST_LOG=INFO
 
 # Run the project
 echo "Running project..."
-sudo -E NANOS_KERNEL=$NANOS_KERNEL FIRECRACKER_EXECUTABLE=$FIRECRACKER_EXECUTABLE DATABASE_URL=$DATABASE_URL RUST_LOG=WARN  .target/release/ohsw --cidr $CIDR --broker-address $BROKER_ADDRESS --broker-port $BROKER_PORT --bridge-name $BRIDGE_INTERFACE 
+sudo -E ./target/release/ohsw --cidr $CIDR --broker-address $BROKER_ADDRESS --broker-port $BROKER_PORT --bridge-name $BRIDGE_INTERFACE
 
 # Clean Tap
 sudo ip link | awk -F: '/fc-/{print $2}' | xargs -I{} sudo ip link del {}
