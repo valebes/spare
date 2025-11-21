@@ -101,6 +101,8 @@ pub fn init() -> Result<(), ConfigError> {
         .unwrap();
 
     CONFIG.set(settings.try_deserialize()?).unwrap(); // We are okay with this unwrap
+    println!("Loaded configuration: {:#?}", CONFIG.get().unwrap());
+
     Ok(())
 }
 
