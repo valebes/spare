@@ -90,7 +90,7 @@ pub fn init() -> Result<(), ConfigError> {
         settings = settings.add_source(File::with_name(&config_file_path));
     }
     let settings = settings
-        .add_source(Environment::default())
+        .add_source(Environment::default().separator("__"))
         .set_override_option("general.server_addr", args.server_address)?
         .set_override_option("general.port", args.port)?
         .set_override_option("network.cidr", args.cidr)?
