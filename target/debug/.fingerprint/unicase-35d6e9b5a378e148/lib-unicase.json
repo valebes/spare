@@ -1,0 +1,1 @@
+{"rustc":13432254184817171753,"features":"[]","declared_features":"[\"nightly\"]","target":10111812390214232954,"profile":3033921117576893,"path":5404764324985766461,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"debug/.fingerprint/unicase-35d6e9b5a378e148/dep-lib-unicase","checksum":false}}],"rustflags":["-Zproc-macro-backtrace"],"config":2069994364910194474,"compile_kind":0}

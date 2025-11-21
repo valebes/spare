@@ -1,0 +1,1 @@
+{"rustc":13432254184817171753,"features":"","declared_features":"","target":0,"profile":0,"path":0,"deps":[[9689903380558560274,"build_script_build",false,8423163829621706064]],"local":[{"RerunIfChanged":{"output":"debug/build/serde-926ee034f99ab002/output","paths":["build.rs"]}}],"rustflags":["-Zproc-macro-backtrace"],"config":0,"compile_kind":0}

@@ -1,0 +1,2 @@
+utils::config::_::<impl db::_::_serde::Deserialize<'de> for Firecracker>::deserialize::__Field
+utils::config::_::<impl db::_::_serde::Deserialize<'de> for utils::config::Configuration>::deserialize::__Field

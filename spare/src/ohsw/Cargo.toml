@@ -30,4 +30,6 @@ rand = "0.9.0"
 rand_distr = "0.5.1"
 longitude = "0.2.1"
 dyn-clone = "1.0.19"
+config = "0.15.19"
+lazy_static = "1.5.0"
 

@@ -1,0 +1,13 @@
+/Users/valebes/Desktop/Projects/spare/target/debug/deps/toml-b6173c304c429565.d: /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/lib.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/map.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/value.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/de.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/ser.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/macros.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/edit.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/fmt.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/table.rs
+
+/Users/valebes/Desktop/Projects/spare/target/debug/deps/libtoml-b6173c304c429565.rmeta: /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/lib.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/map.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/value.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/de.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/ser.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/macros.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/edit.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/fmt.rs /Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/table.rs
+
+/Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/lib.rs:
+/Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/map.rs:
+/Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/value.rs:
+/Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/de.rs:
+/Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/ser.rs:
+/Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/macros.rs:
+/Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/edit.rs:
+/Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/fmt.rs:
+/Users/valebes/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/toml-0.8.20/src/table.rs:

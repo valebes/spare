@@ -6,7 +6,6 @@ use actix_web::{
     web::{Data, JsonConfig},
     App, HttpServer,
 };
-use clap::{arg, command, Parser};
 use local_ip_address::local_ip;
 use log::{error, info};
 use ohsw::{
@@ -18,10 +17,8 @@ use ohsw::{
         iggy::{IggyConnector, Operation, Payload},
     },
     orchestrator::{
-        self,
-        global::{emergency::Emergency, identity::Node},
-        Orchestrator,
-    },
+        self, Orchestrator, global::{emergency::Emergency, identity::Node}
+    }, utils::{config::CONFIG, parser::{ARGS, Args}},
 };
 use sqlx::{sqlite, Pool};
 use std::{
@@ -34,26 +31,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-// Struct that represents the supported arguments for the executable
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-struct Args {
-    // Iggy broker address
-    #[arg(short, long, default_value = "127.0.0.1")]
-    broker_address: String,
-    // Iggy broker port
-    #[arg(short, long, default_value = "8090")]
-    broker_port: u16,
-    // CIDR for the network
-    #[arg(short, long, required = true)]
-    cidr: String,
-    // Port for the server
-    #[arg(short, long, default_value = "8085")]
-    port: u16,
-    // Bridge name for the virtual network
-    #[arg(short, long, default_value = "br0")]
-    bridge_name: String,
-}
 
 // Controller that handles the emergency mode
 #[actix_web::main]
@@ -142,16 +119,20 @@ async fn emergency_controller(
 async fn main() -> std::io::Result<()> {
     env_logger::init();
 
-    // Parse arguments from command line
-    let iggy_host = Args::parse().broker_address;
-    let iggy_port = Args::parse().broker_port;
+    config::init();
+
+    let config = CONFIG.get().unwrap();
+
+    // Fetch broker address/port from config
+    let iggy_host = config.broker.address;
+    let iggy_port = config.broker.port;
 
     // Connect to the Iggy message broker
     let iggy_client = IggyConnector::new(&format!("{iggy_host}:{iggy_port}")).await;
 
     // Registering Phase
     let worker_address = local_ip().unwrap();
-    let worker_port = Args::parse().port;
+    let worker_port = config.network.port;
 
     // Register Node with (0, 0) position, we will update it later.
     // This is a temporary solution only used for the sake of the experiment.
@@ -205,42 +186,18 @@ async fn main() -> std::io::Result<()> {
 
     // Fetch the Firecracker executable and the Nanos kernel
     // These must be set in the environment variables FIRECRACKER_EXECUTABLE and NANOS_KERNEL
-    let executable = match env::var("FIRECRACKER_EXECUTABLE") {
-        Ok(val) => {
-            // Check if file exists
-            if Path::new(&val).exists() {
-                val
-            } else {
-                panic!("Cannot find Firecracker executable in: {val}");
-            }
-        }
-        Err(_) => {
-            panic!("FIRECRACKER_EXECUTABLE environment variable not set");
-        }
-    };
+    let executable = config.firecracker.executable;
 
-    let kernel = match env::var("NANOS_KERNEL") {
-        Ok(val) => {
-            // Check if file exists
-            if Path::new(&val).exists() {
-                val
-            } else {
-                panic!("Cannot find Nanos kernel in: {val}");
-            }
-        }
-        Err(_) => {
-            panic!("NANOS_KERNEL environment variable not set");
-        }
-    };
+    let kernel = config.firecracker.nanos_kernel;
 
-    // Fetch the bridge name from the arguments
-    let bridge = Args::parse().bridge_name.to_owned();
+    // Fetch the bridge name from config
+    let bridge = config.network.bridge;
 
     // Establish connection to the database
     let pool = db::establish_connection().await.unwrap();
 
-    // Parse CIDR from arguments
-    let cidr = Args::parse().cidr;
+    // Parse CIDR from config
+    let cidr = config.network.cidr;
     let base_address = cidr.split('/').next().unwrap();
     let prefix = cidr.split('/').nth(1).unwrap();
     let addresses = Addresses::new(
@@ -286,7 +243,6 @@ async fn main() -> std::io::Result<()> {
             .service(resources)
             .service(emergency)
     })
-    .backlog(2048)
     .bind(("0.0.0.0", 8085))?
     .disable_signals()
     .run();

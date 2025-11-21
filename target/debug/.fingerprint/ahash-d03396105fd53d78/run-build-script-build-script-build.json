@@ -1,0 +1,1 @@
+{"rustc":13432254184817171753,"features":"","declared_features":"","target":0,"profile":0,"path":0,"deps":[[10791833957791020630,"build_script_build",false,10709929390488910633]],"local":[{"RerunIfChanged":{"output":"debug/build/ahash-d03396105fd53d78/output","paths":["build.rs"]}}],"rustflags":["-Zproc-macro-backtrace"],"config":0,"compile_kind":0}
