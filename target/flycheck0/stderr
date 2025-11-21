@@ -1,5 +1,5 @@
-   0.601397292s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint: fingerprint error for ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("ohsw", ["lib"], "/Users/valebes/Desktop/Projects/spare/spare/src/ohsw/src/lib.rs", Edition2021) }
-   0.601862875s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/valebes/Desktop/Projects/spare/target/debug/.fingerprint/ohsw-835db0c070bb6302/lib-ohsw`
+   0.229449916s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint: fingerprint error for ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("ohsw", ["lib"], "/Users/valebes/Desktop/Projects/spare/spare/src/ohsw/src/lib.rs", Edition2021) }
+   0.229480208s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/valebes/Desktop/Projects/spare/target/debug/.fingerprint/ohsw-379940e1c9be625c/lib-ohsw`
 
 Caused by:
     No such file or directory (os error 2)
@@ -22,8 +22,8 @@ Stack backtrace:
   14: std::rt::lang_start::<()>::{closure#0}
   15: std::rt::lang_start_internal
   16: _main
-   0.727476000s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint: fingerprint error for ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("ohsw", ["lib"], "/Users/valebes/Desktop/Projects/spare/spare/src/ohsw/src/lib.rs", Edition2021) }
-   0.727512167s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/valebes/Desktop/Projects/spare/target/debug/.fingerprint/ohsw-dd667c89c8cbf7fd/test-lib-ohsw`
+   0.252750250s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint: fingerprint error for ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("ohsw", ["lib"], "/Users/valebes/Desktop/Projects/spare/spare/src/ohsw/src/lib.rs", Edition2021) }
+   0.252766375s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/valebes/Desktop/Projects/spare/target/debug/.fingerprint/ohsw-df22d345d62db1d0/test-lib-ohsw`
 
 Caused by:
     No such file or directory (os error 2)
@@ -46,8 +46,8 @@ Stack backtrace:
   14: std::rt::lang_start::<()>::{closure#0}
   15: std::rt::lang_start_internal
   16: _main
-   0.729239459s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint: fingerprint error for ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw)/Check { test: false }/TargetInner { name: "ohsw", doc: true, ..: with_path("/Users/valebes/Desktop/Projects/spare/spare/src/ohsw/src/main.rs", Edition2021) }
-   0.729248292s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/valebes/Desktop/Projects/spare/target/debug/.fingerprint/ohsw-2fefa813435444c6/bin-ohsw`
+   0.254186625s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint: fingerprint error for ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw)/Check { test: false }/TargetInner { name: "ohsw", doc: true, ..: with_path("/Users/valebes/Desktop/Projects/spare/spare/src/ohsw/src/main.rs", Edition2021) }
+   0.254194208s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/valebes/Desktop/Projects/spare/target/debug/.fingerprint/ohsw-01d13859bdabb144/bin-ohsw`
 
 Caused by:
     No such file or directory (os error 2)
@@ -70,8 +70,8 @@ Stack backtrace:
   14: std::rt::lang_start::<()>::{closure#0}
   15: std::rt::lang_start_internal
   16: _main
-   0.730379209s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint: fingerprint error for ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw)/Check { test: true }/TargetInner { name: "ohsw", doc: true, ..: with_path("/Users/valebes/Desktop/Projects/spare/spare/src/ohsw/src/main.rs", Edition2021) }
-   0.730385584s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/valebes/Desktop/Projects/spare/target/debug/.fingerprint/ohsw-b850e011d001ef46/test-bin-ohsw`
+   0.255356166s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint: fingerprint error for ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw)/Check { test: true }/TargetInner { name: "ohsw", doc: true, ..: with_path("/Users/valebes/Desktop/Projects/spare/spare/src/ohsw/src/main.rs", Edition2021) }
+   0.255362250s  INFO prepare_target{force=false package_id=ohsw v0.1.0 (/Users/valebes/Desktop/Projects/spare/spare/src/ohsw) target="ohsw"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/valebes/Desktop/Projects/spare/target/debug/.fingerprint/ohsw-bbf82590825f266d/test-bin-ohsw`
 
 Caused by:
     No such file or directory (os error 2)

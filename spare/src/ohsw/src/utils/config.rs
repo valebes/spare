@@ -80,8 +80,11 @@ pub fn init() -> Result<(), ConfigError> {
         }
     };
 
-    let settings = Config::builder()
-        .add_source(File::with_name(&config_file_path))
+    let mut settings = Config::builder();
+    if std::path::Path::new(&config_file_path).exists() {
+        settings = settings.add_source(File::with_name(&config_file_path));
+    }
+    let settings = settings
         .add_source(Environment::default())
         .set_override_option("general.server_addr", args.server_address)?
         .set_override_option("general.port", args.port)?
