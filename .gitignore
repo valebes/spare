@@ -1,0 +1,13 @@
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Rust
+target/
+
+# Editor-specific files
+.vscode/
+.idea/
+
+# Miscellaneous
+.env
