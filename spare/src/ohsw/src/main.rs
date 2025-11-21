@@ -135,7 +135,7 @@ async fn main() -> std::io::Result<()> {
 
     // Registering Phase
     let worker_address = local_ip().unwrap();
-    let worker_port = config.network.port;
+    let worker_port = config.general.port;
 
     // Register Node with (0, 0) position, we will update it later.
     // This is a temporary solution only used for the sake of the experiment.
