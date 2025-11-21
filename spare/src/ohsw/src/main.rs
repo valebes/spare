@@ -122,7 +122,12 @@ async fn emergency_controller(
 async fn main() -> std::io::Result<()> {
     env_logger::init();
 
-    config::init();
+    let err = config::init();
+
+    if err.is_err() {
+        error!("Failed to initialize configuration: {:?}", err);
+        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Configuration initialization failed"));
+    }
 
     let config = CONFIG.get().unwrap();
 
