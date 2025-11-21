@@ -46,11 +46,16 @@ pub struct Broker {
 
 #[derive(Debug, Default, serde::Deserialize, PartialEq, Eq)]
 pub struct Configuration {
+    #[serde(default)]
     pub general: General,
+    #[serde(default)]
     pub network: Network,
+    #[serde(default)]
     pub firecracker: Firecracker,
+    #[serde(default)]
     pub broker: Broker,
 }
+
 /// Initialize configuration from file, env, and CLI args.
 pub fn init() -> Result<(), ConfigError> {
     let args = Args::parse();
