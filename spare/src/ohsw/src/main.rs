@@ -200,7 +200,7 @@ async fn main() -> std::io::Result<()> {
     let pool = db::establish_connection().await.unwrap();
 
     // Parse CIDR from config
-    let cidr = config.network.cidr;
+    let cidr = &config.network.cidr;
     let base_address = cidr.split('/').next().unwrap();
     let prefix = cidr.split('/').nth(1).unwrap();
     let addresses = Addresses::new(
