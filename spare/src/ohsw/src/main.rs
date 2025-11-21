@@ -211,9 +211,9 @@ async fn main() -> std::io::Result<()> {
 
     // Create a new FirecrackerBuilder
     let builder = Arc::new(FirecrackerBuilder::new(
-        executable,
-        kernel,
-        bridge,
+        executable.clone(),
+        kernel.clone(),
+        bridge.clone(),
         addresses.clone(),
     ));
 

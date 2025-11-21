@@ -39,7 +39,7 @@ pub struct Firecracker {
 }
 
 #[derive(Debug, Default, serde::Deserialize, PartialEq, Eq)]
-struct Broker {
+pub struct Broker {
     pub address: String,
     pub port: u16,
 }
