@@ -21,8 +21,8 @@ use ohsw::{
         global::{emergency::Emergency, identity::Node},
         Orchestrator,
     },
+    utils::config,
     utils::config::CONFIG,
-    utils::config
 };
 use sqlx::{sqlite, Pool};
 use std::{
@@ -126,7 +126,10 @@ async fn main() -> std::io::Result<()> {
 
     if err.is_err() {
         error!("Failed to initialize configuration: {:?}", err);
-        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Configuration initialization failed"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Configuration initialization failed",
+        ));
     }
 
     let config = CONFIG.get().unwrap();

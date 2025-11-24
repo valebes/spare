@@ -1,1 +1,0 @@
-{"rustc":13432254184817171753,"features":"","declared_features":"","target":0,"profile":0,"path":0,"deps":[[1999399154011168049,"build_script_build",false,1065699322451028069]],"local":[{"RerunIfChanged":{"output":"debug/build/rustversion-5334ec475d0b3db6/output","paths":["build/build.rs"]}}],"rustflags":["-Zproc-macro-backtrace"],"config":0,"compile_kind":0}
