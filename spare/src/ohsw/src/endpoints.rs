@@ -175,7 +175,7 @@ async fn start_instance(
         .await;
 
     let duration = start.elapsed();
-    error!("Time to create instance: {} ms", duration.as_millis());
+    info!("Time to create instance: {} ms", duration.as_millis());
 
     match fc_instance {
         Ok(mut fc_instance) => {
@@ -232,7 +232,7 @@ async fn start_instance(
             }
 
             let duration = start.elapsed();
-            error!("Time to start instance: {} ms", duration.as_millis());
+            info!("Time to start instance: {} ms", duration.as_millis());
 
             info!("Starting instance: {} ip: {}", instance.id, instance.ip);
 
@@ -255,7 +255,7 @@ async fn start_instance(
             };
 
             let duration = start.elapsed();
-            error!("Time to accept vsock: {} ms", duration.as_millis());
+            info!("Time to accept vsock: {} ms", duration.as_millis());
 
             info!(
                 "Socket accepted: {}, for instance {}",
@@ -277,7 +277,7 @@ async fn start_instance(
             }
 
             let duration = start.elapsed();
-            error!("Time to read from vsock: {} ms", duration.as_millis());
+            info!("Time to read from vsock: {} ms", duration.as_millis());
 
             let message: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buf);
 
@@ -323,7 +323,7 @@ async fn start_instance(
             }
 
             let duration = start.elapsed();
-            error!(
+            info!(
                 "Time to write payload to vsock: {} ms",
                 duration.as_millis()
             );
@@ -357,7 +357,7 @@ async fn start_instance(
             }
 
             let duration = start.elapsed();
-            error!(
+            info!(
                 "Time to read response from vsock: {} ms",
                 duration.as_millis()
             );
@@ -375,107 +375,6 @@ async fn start_instance(
                     error!("Error in obtaining std stream: {}", e);
                 }
             }
-
-            /*
-               The problem here: The instance at this point is ready, but in some
-               rare cases, firecracker has not initialized the network yet, so
-               request to the instance may go in timeout.
-            */
-
-            /*
-            info!("Instance is ready: {}", instance.id);
-            // Forward request to instance
-            let client = Client::default();
-            let max_retries = 3;
-            let mut retries = 0;
-            let mut res;
-            loop {
-                info!("Instance: {}, num of retries: {}", instance.id, retries);
-                if retries > max_retries {
-                    emergency_cleanup(db_pool, &mut instance, &mut fc_instance, builder).await;
-                    return Err(InstanceError::Timeout);
-                }
-                // TODO: Here we should put a timeout
-                if data.payload.is_none() {
-                    match client
-                        .get(format!("http://{}:{}", instance.ip, instance.port))
-                        .send()
-                        .await
-                    {
-                        Ok(result) => {
-                            res = result;
-                            break;
-                        }
-                        Err(e) => match e {
-                            awc::error::SendRequestError::Send(e) => {
-                                error!("Error in sending the request: {:?}", e);
-                                retries += 1;
-                                sleep(Duration::from_millis(10)).await;
-                                continue;
-                            },
-                            awc::error::SendRequestError::Connect(e) => {
-                                error!("Error in connecting to the instance: {:?}", e);
-                                retries += 1;
-                                sleep(Duration::from_millis(50)).await;
-                                continue;
-                            },
-                            awc::error::SendRequestError::Timeout => {
-                                error!("Error in connecting to the instance due timeout!");
-                                retries += 1;
-                                sleep(Duration::from_millis(10)).await;
-                                continue;
-                            }
-                            _ => {
-                                error!("Send error: {:?}", e);
-                                emergency_cleanup(
-                                    db_pool,
-                                    &mut instance,
-                                    &mut fc_instance,
-                                    builder,
-                                )
-                                .await;
-                                return Err(InstanceError::HostUnreachable);
-                            }
-                        },
-                    };
-                } else {
-                    let payload = Payload {
-                        payload: data.payload.clone().unwrap(),
-                    };
-                    match client
-                        .post(format!("http://{}:{}", instance.ip, instance.port))
-                        .send_json(&payload)
-                        .await
-                    {
-                        Ok(result) => {
-                            res = result;
-                            break;
-                        }
-                        Err(e) => {
-                            match e {
-                                awc::error::SendRequestError::Send(e) => {
-                                    error!("Error sending the request: {:?}", e);
-                                    retries += 1;
-                                    sleep(Duration::from_millis(10)).await;
-                                    continue;
-                                }
-                                _ => {
-                                    error!("Send error: {:?}", e);
-                                    emergency_cleanup(
-                                        db_pool,
-                                        &mut instance,
-                                        &mut fc_instance,
-                                        builder,
-                                    )
-                                    .await;
-                                    return Err(InstanceError::HostUnreachable);
-                                }
-                            };
-                        }
-                    };
-                }
-            }
-            */
 
             let _ = fc_instance.stop().await;
             let _ = fc_instance.delete().await;
@@ -502,198 +401,248 @@ async fn start_instance(
 
 #[cfg(test)]
 mod test {
-    use awc::Client;
-
+    use super::*;
     use crate::net::addresses::Addresses;
     use std::fs::{self, OpenOptions};
     use std::io::{Read, Write};
+    use std::os::unix::net::UnixListener;
     use std::path::Path;
     use std::{net::Ipv4Addr, str::FromStr, time::Instant};
 
-    use super::*;
     /*
-       Small benchmark to measure the cold start time of a firecracker instance and execution time of a demo function.
-       The test will create 1000 instances and measure the time it takes to start each instance and the time it takes to execute the function.
-       The results are saved in two csv files: cold_start.csv and execution.csv
+       Small benchmark to measure the cold start time of a firecracker instance and
+       execution time of a demo function.
+
+       The test will create 1000 instances and measure:
+       - cold start: from `start()` until the guest sends "ready"
+       - execution: from sending payload length+data until the full response is read
+
+       Results are saved into two CSV files: cold_start.csv and execution.csv.
     */
     #[actix_web::test]
     async fn benchmark() {
         let addresses = Addresses::new(Ipv4Addr::from_str("192.168.30.1").unwrap(), 24).unwrap();
 
-        let mut cold_start_times = Vec::new();
-        let mut execution_times = Vec::new();
+        let mut cold_start_times: Vec<u128> = Vec::new();
+        let mut execution_times: Vec<u128> = Vec::new();
 
-        // Fetch configuration from environment variables
-        // Fetch function image path from environment variable
-        let function_image_path = if let Ok(val) = std::env::var("SPARE_FUNCTION") {
-            val
-        } else {
-            panic!("SPARE_FUNCTION environment variable not set");
-        };
-        // Check if the image exists
+        // SPARE_FUNCTION: path to function image
+        let function_image_path =
+            std::env::var("SPARE_FUNCTION").expect("SPARE_FUNCTION environment variable not set");
         if !Path::new(&function_image_path).exists() {
-            panic!("Function image not found");
+            panic!("Function image not found at {}", function_image_path);
         }
 
-        // Fetch firecracker executable path from environment variable
-        let firecracker_executable = if let Ok(val) = std::env::var("FIRECRACKER_EXECUTABLE") {
-            val
-        } else {
-            panic!("FIRECRACKER_EXECUTABLE environment variable not set");
-        };
-        // Check if the executable exists
+        // FIRECRACKER_EXECUTABLE: path to firecracker binary
+        let firecracker_executable = std::env::var("FIRECRACKER_EXECUTABLE")
+            .expect("FIRECRACKER_EXECUTABLE environment variable not set");
         if !Path::new(&firecracker_executable).exists() {
-            panic!("Firecracker executable not found");
+            panic!(
+                "Firecracker executable not found at {}",
+                firecracker_executable
+            );
         }
 
-        // Fetch kernel image path from environment variable
-        let kernel_image_path = if let Ok(val) = std::env::var("NANOS_KERNEL") {
-            val
-        } else {
-            panic!("NANOS_KERNEL environment variable not set");
-        };
-        // Check if the kernel image exists
+        // NANOS_KERNEL: path to kernel image
+        let kernel_image_path =
+            std::env::var("NANOS_KERNEL").expect("NANOS_KERNEL environment variable not set");
         if !Path::new(&kernel_image_path).exists() {
-            panic!("Kernel image not found");
+            panic!("Kernel image not found at {}", kernel_image_path);
         }
 
-        // Fetch bridge name from environment variable
-        let bridge_name = if let Ok(val) = std::env::var("BRIDGE_INTERFACE") {
-            val
-        } else {
-            panic!("BRIDGE_INTERFACE environment variable not set");
-        };
+        // BRIDGE_INTERFACE: name of bridge (e.g. "br0")
+        let bridge_name = std::env::var("BRIDGE_INTERFACE")
+            .expect("BRIDGE_INTERFACE environment variable not set");
 
-        // Obviously this test will fail if the paths are not correct, so change them accordingly
-        let firecracker_builder = FirecrackerBuilder::new(
-            firecracker_executable,        // Firecracker executable
-            kernel_image_path.to_string(), // Kernel image
-            bridge_name,                   // Bridge name
+        let builder = FirecrackerBuilder::new(
+            firecracker_executable,
+            kernel_image_path.to_string(),
+            bridge_name,
             addresses,
         );
-        let builder = firecracker_builder;
-        let mut i = 0;
 
-        while i < 1000 {
-            let fc_instance = builder
-                .new_instance(function_image_path.clone(), 2, 256) // Image, vcpus, memory
+        let mut i = 0usize;
+        let target_runs = 1000usize;
+
+        while i < target_runs {
+            let fc_instance_res = builder
+                .new_instance(function_image_path.clone(), 2, 256) // image, vcpus, memory
                 .await;
 
-            match fc_instance {
-                Ok(mut fc_instance) => {
-                    // VSOCK
-                    let mut path = fc_instance.get_vsock_path();
-                    path.push_str("_1234");
-                    let socket = std::os::unix::net::UnixListener::bind(path).unwrap();
-
-                    let start = Instant::now();
-                    fc_instance.start().await.unwrap();
-                    let (mut stream, _) = socket.accept().unwrap();
-
-                    let mut buf = [0; 5];
-                    stream.read(&mut buf).unwrap();
-                    let message = String::from_utf8_lossy(&buf);
-
-                    match message.contains("ready") {
-                        true => {
-                            // Update cold start time
-                            cold_start_times.push(start.elapsed().as_nanos());
-
-                            // Forward request to instance
-                            let client = Client::default();
-
-                            let res;
-
-                            // Invoke the function
-                            res = client
-                                .get(format!("http://{}:{}", fc_instance.get_address(), 8084))
-                                .send()
-                                .await;
-
-                            if res.is_ok() {
-                                // Update execution time
-                                execution_times.push(
-                                    start.elapsed().as_nanos() - cold_start_times.last().unwrap(),
-                                );
-                                i += 1;
-                            } else {
-                                // Remove last cold start time and retry
-                                let _ = cold_start_times.pop();
-                            }
-                        }
-                        false => {}
-                    };
-
-                    // Delete instance
-                    let _ = fc_instance.stop().await;
-                    builder
-                        .network
-                        .lock()
-                        .unwrap()
-                        .release(fc_instance.get_address());
-                    let _ = fc_instance.delete().await;
-                }
+            let mut fc_instance = match fc_instance_res {
+                Ok(fc) => fc,
                 Err(e) => {
                     error!("Failed to create instance: {:?}", e);
-                    i -= 1;
+                    // just retry without incrementing i
+                    continue;
+                }
+            };
+
+            // Host side vsock listener
+            let mut path = fc_instance.get_vsock_path();
+            path.push_str("_1234");
+            let socket = match UnixListener::bind(&path) {
+                Ok(s) => s,
+                Err(e) => {
+                    error!("Failed to bind UnixListener on {}: {}", path, e);
+                    let _ = fc_instance.stop().await;
+                    let _ = fc_instance.delete().await;
+                    continue;
+                }
+            };
+
+            let cold_start_begin = Instant::now();
+
+            if let Err(e) = fc_instance.start().await {
+                error!("Failed to start instance: {:?}", e);
+                let _ = fc_instance.stop().await;
+                let _ = fc_instance.delete().await;
+                continue;
+            }
+
+            let (mut stream, _) = match socket.accept() {
+                Ok(s) => s,
+                Err(e) => {
+                    error!("Failed to accept vsock connection: {}", e);
+                    let _ = fc_instance.stop().await;
+                    let _ = fc_instance.delete().await;
+                    continue;
+                }
+            };
+
+            // Wait for "ready"
+            let mut ready_buf = [0u8; 5];
+            if let Err(e) = stream.read_exact(&mut ready_buf) {
+                error!("Error reading ready message from vsock: {}", e);
+                let _ = fc_instance.stop().await;
+                let _ = fc_instance.delete().await;
+                continue;
+            }
+
+            let message = String::from_utf8_lossy(&ready_buf);
+            if !message.contains("ready") {
+                error!("Guest did not send 'ready', got: {}", message);
+                let _ = fc_instance.stop().await;
+                let _ = fc_instance.delete().await;
+                continue;
+            }
+
+            let cold_ns = cold_start_begin.elapsed().as_nanos();
+            cold_start_times.push(cold_ns);
+
+            let payload: Option<String> = Some("".to_string()); // adjust payload if needed
+
+            let exec_begin = Instant::now();
+
+            if let Some(p) = &payload {
+                let len = p.len();
+                let mut buf = vec![0u8; 8 + len];
+                buf[0..8].copy_from_slice(&(len as u64).to_be_bytes());
+                buf[8..].copy_from_slice(p.as_bytes());
+
+                if let Err(e) = stream.write_all(&buf) {
+                    error!("Error writing payload to vsock: {}", e);
+                    let _ = fc_instance.stop().await;
+                    let _ = fc_instance.delete().await;
+                    // discard last cold start measurement, since run failed
+                    let _ = cold_start_times.pop();
+                    continue;
+                }
+            } else {
+                // if you really want to support None, still send length 0
+                let len_bytes = 0u64.to_be_bytes();
+                if let Err(e) = stream.write_all(&len_bytes) {
+                    error!("Error writing zero-length header to vsock: {}", e);
+                    let _ = fc_instance.stop().await;
+                    let _ = fc_instance.delete().await;
+                    let _ = cold_start_times.pop();
                     continue;
                 }
             }
+
+            // Read response length (8 bytes)
+            let mut len_buf = [0u8; 8];
+            if let Err(e) = stream.read_exact(&mut len_buf) {
+                error!("Error reading response length from vsock: {}", e);
+                let _ = fc_instance.stop().await;
+                let _ = fc_instance.delete().await;
+                let _ = cold_start_times.pop();
+                continue;
+            }
+
+            let resp_len = u64::from_be_bytes(len_buf) as usize;
+            let mut resp_buf = vec![0u8; resp_len];
+
+            if let Err(e) = stream.read_exact(&mut resp_buf) {
+                error!("Error reading response body from vsock: {}", e);
+                let _ = fc_instance.stop().await;
+                let _ = fc_instance.delete().await;
+                let _ = cold_start_times.pop();
+                continue;
+            }
+
+            let exec_ns = exec_begin.elapsed().as_nanos();
+            execution_times.push(exec_ns);
+
+            // Clean up
+            let _ = stream.shutdown(std::net::Shutdown::Both);
+            let _ = fc_instance.stop().await;
+            let _ = fc_instance.delete().await;
+            builder
+                .network
+                .lock()
+                .unwrap()
+                .release(fc_instance.get_address());
+
+            i += 1;
         }
 
-        // Save times in csv
         let cold_start_path = "cold_start.csv";
-        // If file already exists, clear it
         if Path::new(cold_start_path).exists() {
             fs::remove_file(cold_start_path).unwrap();
         }
-        let mut cold_start = OpenOptions::new()
+
+        let mut cold_start_file = OpenOptions::new()
             .write(true)
             .create(true)
-            .append(false)
+            .truncate(true)
             .open(cold_start_path)
             .unwrap();
 
-        // Write header
-        writeln!(cold_start, "Elapsed time").unwrap();
-        // Write Data
-        for time in &cold_start_times {
-            writeln!(cold_start, "{}", *time as f64 / 1_000_000.00).unwrap();
+        writeln!(cold_start_file, "Elapsed time (ms)").unwrap();
+        for time_ns in &cold_start_times {
+            let ms = *time_ns as f64 / 1_000_000.0;
+            writeln!(cold_start_file, "{}", ms).unwrap();
         }
-        // Flush data into the file
-        cold_start.flush().unwrap();
+        cold_start_file.flush().unwrap();
 
-        // compute average times
-        let avg = cold_start_times.iter().sum::<u128>() / cold_start_times.len() as u128;
-        // nanos to ms f64
-        let avg = avg as f64 / 1_000_000.00;
-        println!("Average cold start time: {} ms", avg);
+        let avg_cold_ns: u128 =
+            cold_start_times.iter().sum::<u128>() / cold_start_times.len() as u128;
+        let avg_cold_ms = avg_cold_ns as f64 / 1_000_000.0;
+        println!("Average cold start time: {} ms", avg_cold_ms);
 
         let execution_path = "execution.csv";
-        // If file already exists, clear it
         if Path::new(execution_path).exists() {
             fs::remove_file(execution_path).unwrap();
         }
-        let mut execution = OpenOptions::new()
+
+        let mut execution_file = OpenOptions::new()
             .write(true)
             .create(true)
-            .append(false)
+            .truncate(true)
             .open(execution_path)
             .unwrap();
 
-        // Write header
-        writeln!(execution, "Elapsed time").unwrap();
-        // Write Data
-        for time in &execution_times {
-            writeln!(execution, "{}", *time as f64 / 1_000_000.00).unwrap();
+        writeln!(execution_file, "Elapsed time (ms)").unwrap();
+        for time_ns in &execution_times {
+            let ms = *time_ns as f64 / 1_000_000.0;
+            writeln!(execution_file, "{}", ms).unwrap();
         }
-        // Flush data into the file
-        execution.flush().unwrap();
+        execution_file.flush().unwrap();
 
-        // compute average times
-        let avg = execution_times.iter().sum::<u128>() / execution_times.len() as u128;
-        // nanos to ms f64
-        let avg = avg as f64 / 1_000_000.00;
-        println!("Average execution time: {} ms", avg);
+        let avg_exec_ns: u128 =
+            execution_times.iter().sum::<u128>() / execution_times.len() as u128;
+        let avg_exec_ms = avg_exec_ns as f64 / 1_000_000.0;
+        println!("Average execution time: {} ms", avg_exec_ms);
     }
 }
