@@ -404,8 +404,7 @@ mod test {
     use super::*;
     use crate::net::addresses::Addresses;
     use std::fs::{self, OpenOptions};
-    use std::io::{Read, Write};
-    use std::os::unix::net::UnixListener;
+    use std::io::Write;
     use std::path::Path;
     use std::{net::Ipv4Addr, str::FromStr, time::Instant};
 
@@ -500,7 +499,7 @@ mod test {
                 continue;
             }
 
-            let (mut stream, _) = match socket.accept() {
+            let (mut stream, _) = match socket.accept().await {
                 Ok(s) => s,
                 Err(e) => {
                     error!("Failed to accept vsock connection: {}", e);
@@ -512,7 +511,7 @@ mod test {
 
             // Wait for "ready"
             let mut ready_buf = [0u8; 5];
-            if let Err(e) = stream.read_exact(&mut ready_buf) {
+            if let Err(e) = read_exact(&mut stream,&mut ready_buf, 500).await {
                 error!("Error reading ready message from vsock: {}", e);
                 let _ = fc_instance.stop().await;
                 let _ = fc_instance.delete().await;
@@ -540,7 +539,7 @@ mod test {
                 buf[0..8].copy_from_slice(&(len as u64).to_be_bytes());
                 buf[8..].copy_from_slice(p.as_bytes());
 
-                if let Err(e) = stream.write_all(&buf) {
+                if let Err(e) = write_all(&mut stream,&buf, 500).await {
                     error!("Error writing payload to vsock: {}", e);
                     let _ = fc_instance.stop().await;
                     let _ = fc_instance.delete().await;
@@ -551,7 +550,7 @@ mod test {
             } else {
                 // if you really want to support None, still send length 0
                 let len_bytes = 0u64.to_be_bytes();
-                if let Err(e) = stream.write_all(&len_bytes) {
+                if let Err(e) = write_all(&mut stream,&len_bytes, 500).await {
                     error!("Error writing zero-length header to vsock: {}", e);
                     let _ = fc_instance.stop().await;
                     let _ = fc_instance.delete().await;
@@ -562,7 +561,7 @@ mod test {
 
             // Read response length (8 bytes)
             let mut len_buf = [0u8; 8];
-            if let Err(e) = stream.read_exact(&mut len_buf) {
+            if let Err(e) = read_exact(&mut stream, &mut len_buf, 500).await {
                 error!("Error reading response length from vsock: {}", e);
                 let _ = fc_instance.stop().await;
                 let _ = fc_instance.delete().await;
@@ -573,7 +572,7 @@ mod test {
             let resp_len = u64::from_be_bytes(len_buf) as usize;
             let mut resp_buf = vec![0u8; resp_len];
 
-            if let Err(e) = stream.read_exact(&mut resp_buf) {
+            if let Err(e) = read_exact(&mut stream, &mut resp_buf, 500).await {
                 error!("Error reading response body from vsock: {}", e);
                 let _ = fc_instance.stop().await;
                 let _ = fc_instance.delete().await;
@@ -585,7 +584,17 @@ mod test {
             execution_times.push(exec_ns);
 
             // Clean up
-            let _ = stream.shutdown(std::net::Shutdown::Both);
+            match stream.into_std() {
+                Ok(std_stream) => match std_stream.shutdown(std::net::Shutdown::Both) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("Error shutting down vsocket: {}", e);
+                    }
+                },
+                Err(e) => {
+                    error!("Error in obtaining std stream: {}", e);
+                }
+            }
             let _ = fc_instance.stop().await;
             let _ = fc_instance.delete().await;
             builder
