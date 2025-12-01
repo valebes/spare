@@ -18,7 +18,7 @@ use ohsw::{
     },
     orchestrator::{
         self,
-        global::{emergency::Emergency, identity::Node},
+        strategy::{emergency::Emergency, identity::Node},
         Orchestrator,
     },
     utils::config,
