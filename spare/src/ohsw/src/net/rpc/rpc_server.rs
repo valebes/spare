@@ -1,6 +1,9 @@
+use std::sync::Arc;
+
+use log::info;
 use tonic::{transport::Server, Request, Response, Status};
 
-use crate::orchestrator::{Orchestrator, local_resources};
+use crate::orchestrator::{Orchestrator};
 
 pub mod resources {
     tonic::include_proto!("resources"); // The string specified here must match the proto package name
@@ -19,7 +22,7 @@ impl RPCServer {
     pub fn serve(self, addr: std::net::SocketAddr) -> Result<(), Box<dyn std::error::Error>> {
         let rpc_server = self;
 
-        tokio::spawn(async move {
+        actix_web::rt::spawn(async move {
             info!("RPC Server listening on {}", addr);
 
             Server::builder()
