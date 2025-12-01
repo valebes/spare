@@ -511,7 +511,7 @@ mod test {
 
             // Wait for "ready"
             let mut ready_buf = [0u8; 5];
-            if let Err(e) = read_exact(&mut stream,&mut ready_buf, 500).await {
+            if let Err(e) = read_exact(&mut stream, &mut ready_buf, 500).await {
                 error!("Error reading ready message from vsock: {}", e);
                 let _ = fc_instance.stop().await;
                 let _ = fc_instance.delete().await;
@@ -539,7 +539,7 @@ mod test {
                 buf[0..8].copy_from_slice(&(len as u64).to_be_bytes());
                 buf[8..].copy_from_slice(p.as_bytes());
 
-                if let Err(e) = write_all(&mut stream,&buf, 500).await {
+                if let Err(e) = write_all(&mut stream, &buf, 500).await {
                     error!("Error writing payload to vsock: {}", e);
                     let _ = fc_instance.stop().await;
                     let _ = fc_instance.delete().await;
@@ -550,7 +550,7 @@ mod test {
             } else {
                 // if you really want to support None, still send length 0
                 let len_bytes = 0u64.to_be_bytes();
-                if let Err(e) = write_all(&mut stream,&len_bytes, 500).await {
+                if let Err(e) = write_all(&mut stream, &len_bytes, 500).await {
                     error!("Error writing zero-length header to vsock: {}", e);
                     let _ = fc_instance.stop().await;
                     let _ = fc_instance.delete().await;

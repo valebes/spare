@@ -233,13 +233,26 @@ async fn main() -> std::io::Result<()> {
     let emergency_controller = std::thread::spawn(move || {
         let rt = actix_web::rt::System::new();
         rt.block_on(async move {
-        emergency_controller(
-            pool.clone(),
-            orchestrator_clone,
-            iggy_client,
-            shutdown_clone,
-        ).await;
+            emergency_controller(
+                pool.clone(),
+                orchestrator_clone,
+                iggy_client,
+                shutdown_clone,
+            )
+            .await;
         });
+    });
+
+    // Create RPCServer instance
+    let rpc_server = RPCServer::new(orchestrator.clone());
+
+    let rpc_addr = "0.0.0.0:50051".parse().unwrap();
+
+    // Spawn server as background task
+    let rpc_handle = actix_web::rt::spawn(async move {
+        if let Err(e) = rpc_server.serve(rpc_addr).await {
+            log::error!("RPC server error: {}", e);
+        }
     });
 
     // Start the web server
@@ -279,6 +292,8 @@ async fn main() -> std::io::Result<()> {
     server.await?;
 
     shutdown.await?;
+
+    rpc_handle.await?;
 
     emergency_controller.join().unwrap();
 
