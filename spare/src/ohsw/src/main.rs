@@ -36,7 +36,6 @@ use std::{
 };
 
 // Controller that handles the emergency mode
-#[actix_web::main]
 async fn emergency_controller(
     pool: Pool<sqlite::Sqlite>,
     orchestrator: Arc<Orchestrator>,
@@ -232,12 +231,15 @@ async fn main() -> std::io::Result<()> {
 
     // Start emergency controller
     let emergency_controller = std::thread::spawn(move || {
+        let rt = actix_web::rt::System::new();
+        rt.block_on(async move {
         emergency_controller(
             pool.clone(),
             orchestrator_clone,
             iggy_client,
             shutdown_clone,
         );
+        });
     });
 
     // Start the web server
