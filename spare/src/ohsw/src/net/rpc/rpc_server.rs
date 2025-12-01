@@ -48,3 +48,4 @@ impl Resources for RPCServer  {
 
         Ok(Response::new(reply)) 
 }
+} 
