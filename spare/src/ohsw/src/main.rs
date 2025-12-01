@@ -238,7 +238,7 @@ async fn main() -> std::io::Result<()> {
             orchestrator_clone,
             iggy_client,
             shutdown_clone,
-        );
+        ).await;
         });
     });
 
