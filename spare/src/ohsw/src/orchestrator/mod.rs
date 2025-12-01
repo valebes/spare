@@ -1,5 +1,5 @@
 //! Orchestrator module. It is responsible for managing the local resources and monitoring the remote nodes
-pub mod global;
+pub mod strategy;
 mod local_resources;
 use std::{
     sync::{Mutex, RwLock},
@@ -9,7 +9,7 @@ use std::{
 use crate::api::{self, invoke::InvokeFunction, resources::Resources};
 use actix_web::{web, HttpRequest, HttpResponse};
 use awc::{body::BoxBody, Client};
-use global::{
+use strategy::{
     emergency::Emergency, geo_distance::GeoDistance, identity::Node, Distance, NeighborNode,
     NeighborNodeList, NeighborNodeStrategy, NeighborNodeType,
 };

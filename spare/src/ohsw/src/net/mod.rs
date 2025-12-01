@@ -2,3 +2,4 @@
 pub mod addresses;
 pub mod iggy;
 pub mod linux;
+pub mod rpc;

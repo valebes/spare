@@ -1,0 +1,11 @@
+syntax = "proto3";
+package resources;
+
+service Resources {
+    rpc GetResources() returns (ResourcesReply);
+}
+
+message ResourcesReply {
+    int64 cpu = 1;
+    int64 memory = 2;
+}

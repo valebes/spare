@@ -192,7 +192,7 @@ async fn main() -> std::io::Result<()> {
     }
 
     // Create orchestrator
-    let orchestrator = Arc::new(orchestrator::Orchestrator::new(nodes, identity.clone()));
+    let orchestrator = Arc::new(orchestrator::Orchestrator::new(nodes, identity.clone())); // TODO: Register node as background task
     let orchestrator_clone = orchestrator.clone();
 
     // Fetch the Firecracker executable and the Nanos kernel
