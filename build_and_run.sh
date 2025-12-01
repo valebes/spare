@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS instances (
 EOF
 
 DATABASE_URL=sqlite://$DB_FILE cargo sqlx prepare --workspace
- 
+
 cargo build --release > /dev/null
 
 # Export environment variables for nested configuration keys
