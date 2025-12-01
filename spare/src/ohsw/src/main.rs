@@ -14,15 +14,12 @@ use ohsw::{
     execution_environment::firecracker::FirecrackerBuilder,
     net::{
         addresses::Addresses,
-        iggy::{IggyConnector, Operation, Payload},
+        iggy::{IggyConnector, Operation, Payload}, rpc::rpc_server::RPCServer,
     },
     orchestrator::{
-        self,
-        strategy::{emergency::Emergency, identity::Node},
-        Orchestrator,
+        self, Orchestrator, strategy::{emergency::Emergency, identity::Node}
     },
-    utils::config,
-    utils::config::CONFIG,
+    utils::config::{self, CONFIG},
 };
 use sqlx::{sqlite, Pool};
 use std::{
@@ -244,7 +241,7 @@ async fn main() -> std::io::Result<()> {
     });
 
     // Create RPCServer instance
-    let rpc_server = RPCServer::new(orchestrator.clone());
+    let rpc_server = RPCServer::new(orchestrator.clone(), shutdown.clone());
 
     let rpc_addr = "0.0.0.0:50051".parse().unwrap();
 
