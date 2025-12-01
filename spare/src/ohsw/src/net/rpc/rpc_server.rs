@@ -5,11 +5,13 @@ use tonic::{transport::Server, Request, Response, Status};
 
 use crate::orchestrator::{Orchestrator};
 
+use resources::resources_server::{Resources, ResourcesServer};
+use resources::{ResourcesReply};
+
 pub mod resources {
     tonic::include_proto!("resources"); // The string specified here must match the proto package name
 }
 
-#[derive(Debug, Default)]
 pub struct RPCServer {
     orchestrator: Arc<Orchestrator>
 }
@@ -40,13 +42,14 @@ impl RPCServer {
 impl Resources for RPCServer  {
     async fn get_resources(
         &self,
+        _request: Request<()>,
     ) -> Result<Response<ResourcesReply>, Status> { 
 
-        let resources = self.orchestrator.get_local_resources();
+        let resources = self.orchestrator.get_resources();
 
         let reply = ResourcesReply {
-            cpu_cores: resources.cpu_cores as u64,
-            memory_mb: resources.memory_mb as u64,
+            cpu: resources.cpus as i64,
+            memory: resources.memory as i64,
         };
 
         Ok(Response::new(reply)) 
