@@ -8,7 +8,8 @@ use std::{
 
 use crate::api::{self, invoke::InvokeFunction, resources::Resources};
 use actix_web::{web, HttpRequest, HttpResponse};
-use awc::{body::BoxBody, Client};
+use awc::body::BoxBody;
+use crate::net::rpc::Client as RpcClient;
 use local_resources::LocalResources;
 use log::{error, info, warn};
 use strategy::{
@@ -217,20 +218,8 @@ impl Orchestrator {
                     }
 
                     // Check if resource are available on the remote node
-                    let client = Client::default();
-                    let response = client
-                        .get(format!("http://{}/resources", node.address()))
-                        .send()
-                        .await;
-                    if response.is_ok() {
-                        let remote_resources =
-                            response.unwrap().json::<api::resources::Resources>().await;
-                        if remote_resources.is_err() {
-                            // Cannot get resources from remote node, continue
-                            continue;
-                        }
-                        match remote_resources {
-                            Ok(remote_resources) => {
+                    let client = RpcClient::new(&node.address());
+                    if let Ok(remote_resources) = client.get_resources().await {
                                 // Check if resources are available
                                 let cpus = remote_resources.cpus.checked_sub(cpus as usize);
                                 // Memory is in MB, so multiply by 1024
@@ -294,12 +283,6 @@ impl Orchestrator {
                                     }
                                 }
                             }
-                            Err(_) => {
-                                // Cannot get resources from remote node, continue
-                                continue;
-                            }
-                        }
-                    }
                 }
                 None => break,
             }
